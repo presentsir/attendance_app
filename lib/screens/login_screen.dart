@@ -25,12 +25,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _loadSchools() async {
-    final schools = await JsonService().loadSchools();
-    print('Loaded schools: ${schools.length}');
-    setState(() {
-      _schools = schools;
-    });
+  final schools = await JsonService().loadSchools();
+  if (schools.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('No schools found in the JSON file')),
+    );
   }
+  setState(() {
+    _schools = schools;
+  });
+}
 
   void _handleLogin() {
     final schoolCode = int.tryParse(_schoolCodeController.text);
@@ -91,7 +95,6 @@ class _LoginScreenState extends State<LoginScreen> {
               items: _schools,
               itemAsString: (School school) => '${school.name} (${school.affNo})',
               onChanged: (School? school) {
-                print('Selected school: ${school?.name}'); // Debugging
                 setState(() {
                   _selectedSchool = school;
                   if (school != null) {
@@ -149,47 +152,47 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: InputDecoration(labelText: 'Roll Number'),
               ),
 
-            Row(
-  children: [
-    Expanded(
-      child: DropdownSearch<School>(
-        items: _schools,
-        itemAsString: (School school) => '${school.name} (${school.affNo})',
-        onChanged: (School? school) {
-          setState(() {
-            _selectedSchool = school;
-            if (school != null) {
-              _schoolCodeController.text = school.affNo.toString();
-            }
-          });
-        },
-        dropdownDecoratorProps: DropDownDecoratorProps(
-          dropdownSearchDecoration: InputDecoration(
-            labelText: 'Select a school',
-            hintText: 'Search by school name or code',
-          ),
-        ),
-        popupProps: PopupProps.menu(
-          showSearchBox: true,
-          searchFieldProps: TextFieldProps(
-            decoration: InputDecoration(
-              hintText: 'Search by school name or code',
-            ),
-          ),
-        ),
-      ),
-    ),
-    IconButton(
-      icon: Icon(Icons.clear),
-      onPressed: () {
-        setState(() {
-          _selectedSchool = null;
-          _schoolCodeController.clear();
-        });
-      },
-    ),
-  ],
-),
+//             Row(
+//   children: [
+//     Expanded(
+//       child: DropdownSearch<School>(
+//         items: _schools,
+//         itemAsString: (School school) => '${school.name} (${school.affNo})',
+//         onChanged: (School? school) {
+//           setState(() {
+//             _selectedSchool = school;
+//             if (school != null) {
+//               _schoolCodeController.text = school.affNo.toString();
+//             }
+//           });
+//         },
+//         dropdownDecoratorProps: DropDownDecoratorProps(
+//           dropdownSearchDecoration: InputDecoration(
+//             labelText: 'Select a school',
+//             hintText: 'Search by school name or code',
+//           ),
+//         ),
+//         popupProps: PopupProps.menu(
+//           showSearchBox: true,
+//           searchFieldProps: TextFieldProps(
+//             decoration: InputDecoration(
+//               hintText: 'Search by school name or code',
+//             ),
+//           ),
+//         ),
+//       ),
+//     ),
+//     IconButton(
+//       icon: Icon(Icons.clear),
+//       onPressed: () {
+//         setState(() {
+//           _selectedSchool = null;
+//           _schoolCodeController.clear();
+//         });
+//       },
+//     ),
+//   ],
+// ),
             SizedBox(height: 20),
             ElevatedButton(
               onPressed: _handleLogin,

@@ -19,13 +19,13 @@ class School {
 
   factory School.fromJson(Map<String, dynamic> json) {
     return School(
-      name: json['name'],
-      affNo: json['aff_no'],
-      state: json['state'],
-      district: json['district'],
-      region: json['region'],
-      address: json['address'],
-      pincode: json['pincode'],
+      name: json['name'] ?? 'Unknown',
+      affNo: json['aff_no'] ?? 0,
+      state: json['state'] ?? 'Unknown',
+      district: json['district'] ?? 'Unknown',
+      region: json['region'] ?? 'Unknown',
+      address: json['address'] ?? 'Unknown',
+      pincode: double.tryParse(json['pincode'].toString()) ?? 0.0, // Handle both String and double
     );
   }
 }
