@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:dropdown_search/dropdown_search.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/json_service.dart';
 import '../models/school_model.dart';
 import 'teacher_dashboard.dart';
 import 'student_dashboard.dart';
+import 'teacher_signin_screen.dart'; // Import the teacher sign-in screen
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -14,9 +16,12 @@ class _LoginScreenState extends State<LoginScreen> {
   final _schoolCodeController = TextEditingController();
   final _nameController = TextEditingController();
   final _rollNoController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   String _role = 'student'; // Default role
   List<School> _schools = [];
   School? _selectedSchool;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -25,23 +30,30 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _loadSchools() async {
-  final schools = await JsonService().loadSchools();
-  if (schools.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('No schools found in the JSON file')),
-    );
+    final schools = await JsonService().loadSchools();
+    if (schools.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No schools found in the JSON file')),
+      );
+    }
+    setState(() {
+      _schools = schools;
+    });
   }
-  setState(() {
-    _schools = schools;
-  });
-}
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     final schoolCode = int.tryParse(_schoolCodeController.text);
     if (schoolCode == null && _selectedSchool == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please select or enter a valid school code')),
       );
+      setState(() {
+        _isLoading = false;
+      });
       return;
     }
 
@@ -62,19 +74,52 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('School not found')),
       );
+      setState(() {
+        _isLoading = false;
+      });
       return;
     }
 
     if (_role == 'teacher') {
-      // Navigate to teacher dashboard
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => TeacherDashboard(school: school, teacherName: _nameController.text),
-        ),
-      );
+      try {
+        final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TeacherDashboard(school: school, teacherName: _nameController.text),
+          ),
+        );
+      } on FirebaseAuthException catch (e) {
+        String errorMessage;
+        switch (e.code) {
+          case 'invalid-email':
+            errorMessage = 'The email address is not valid.';
+            break;
+          case 'user-disabled':
+            errorMessage = 'The user has been disabled.';
+            break;
+          case 'user-not-found':
+            errorMessage = 'No user found with this email.';
+            break;
+          case 'wrong-password':
+            errorMessage = 'Incorrect password.';
+            break;
+          default:
+            errorMessage = 'An unknown error occurred: ${e.message}';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An error occurred. Please try again. Error: $e')),
+        );
+      }
     } else {
-      // Navigate to student dashboard
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -82,6 +127,10 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     }
+
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   @override
@@ -141,62 +190,42 @@ class _LoginScreenState extends State<LoginScreen> {
               groupValue: _role,
               onChanged: (value) => setState(() => _role = value.toString()),
             ),
-            if (_role == 'teacher')
+            if (_role == 'teacher') ...[
               TextField(
-                controller: _nameController,
-                decoration: InputDecoration(labelText: 'Teacher Name'),
+                controller: _emailController,
+                decoration: InputDecoration(labelText: 'Email'),
+                keyboardType: TextInputType.emailAddress,
               ),
+              SizedBox(height: 20),
+              TextField(
+                controller: _passwordController,
+                decoration: InputDecoration(labelText: 'Password'),
+                obscureText: true,
+              ),
+            ],
             if (_role == 'student')
               TextField(
                 controller: _rollNoController,
                 decoration: InputDecoration(labelText: 'Roll Number'),
               ),
-
-//             Row(
-//   children: [
-//     Expanded(
-//       child: DropdownSearch<School>(
-//         items: _schools,
-//         itemAsString: (School school) => '${school.name} (${school.affNo})',
-//         onChanged: (School? school) {
-//           setState(() {
-//             _selectedSchool = school;
-//             if (school != null) {
-//               _schoolCodeController.text = school.affNo.toString();
-//             }
-//           });
-//         },
-//         dropdownDecoratorProps: DropDownDecoratorProps(
-//           dropdownSearchDecoration: InputDecoration(
-//             labelText: 'Select a school',
-//             hintText: 'Search by school name or code',
-//           ),
-//         ),
-//         popupProps: PopupProps.menu(
-//           showSearchBox: true,
-//           searchFieldProps: TextFieldProps(
-//             decoration: InputDecoration(
-//               hintText: 'Search by school name or code',
-//             ),
-//           ),
-//         ),
-//       ),
-//     ),
-//     IconButton(
-//       icon: Icon(Icons.clear),
-//       onPressed: () {
-//         setState(() {
-//           _selectedSchool = null;
-//           _schoolCodeController.clear();
-//         });
-//       },
-//     ),
-//   ],
-// ),
             SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _handleLogin,
-              child: Text('Login'),
+            _isLoading
+                ? CircularProgressIndicator()
+                : ElevatedButton(
+                    onPressed: _handleLogin,
+                    child: Text('Login'),
+                  ),
+            SizedBox(height: 20),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TeacherSignInScreen(),
+                  ),
+                );
+              },
+              child: Text('Don\'t have an account? Sign Up'),
             ),
           ],
         ),

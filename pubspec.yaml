@@ -32,6 +32,7 @@ dependencies:
     sdk: flutter
   firebase_core: ^2.18.0
   dropdown_search: ^5.0.1
+  shared_preferences: ^2.2.2
   cloud_firestore: ^4.15.1
   firebase_auth: ^4.19.1
   provider: ^6.1.1
