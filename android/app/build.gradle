@@ -13,6 +13,26 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    android {
+    signingConfigs {
+        release {
+            storeFile file(' /Users/niteshchourasiya/my-release-key.jks')
+            storePassword 'jattu@8602'
+            keyAlias 'SHA384withRSA'
+            keyPassword 'jattu@8602'
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true // Enables code shrinking
+            shrinkResources true // Removes unused resources
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -33,13 +53,12 @@ android {
         versionName = flutter.versionName
     }
 
-    buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
-        }
-    }
+    // buildTypes {
+    //     release {
+
+    //         signingConfig = signingConfigs.debug
+    //     }
+    // }
 }
 
 flutter {
