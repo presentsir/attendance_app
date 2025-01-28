@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/school_model.dart';
 import '../widgets/attendance_chart.dart';
 import 'login_screen.dart';
+import '../services/user_session.dart';
 
 class StudentDashboard extends StatefulWidget {
   final School school;
@@ -39,14 +40,15 @@ class _StudentDashboardState extends State<StudentDashboard> {
           .collection('attendance_records')
           .where('classId', isEqualTo: widget.classId)
           .where('rollNumber', isEqualTo: widget.rollNo)
-          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime.now().subtract(Duration(days: 30))))
-          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(DateTime.now()))
+          .orderBy('date')
           .get();
 
       int totalDays = attendanceSnapshot.docs.length;
       int presentDays = attendanceSnapshot.docs
           .where((doc) => doc['status'] == 'present')
           .length;
+
+      if (!mounted) return;
 
       setState(() {
         _attendancePercentage = totalDays > 0 
@@ -65,9 +67,61 @@ class _StudentDashboardState extends State<StudentDashboard> {
         );
       }
     } catch (e) {
+      print('Error calculating attendance: $e');
+      if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error calculating attendance: $e')),
+        SnackBar(
+          content: Text('Error calculating attendance. Please try again later.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    // Show confirmation dialog
+    final bool? confirmLogout = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) => AlertDialog(
+        title: Text('Confirm Logout'),
+        content: Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              'Logout',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmLogout != true) return;
+
+    try {
+      await UserSession.clearSession();
+      if (!mounted) return;
+      
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      print('Error during logout: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error logging out. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -82,20 +136,56 @@ class _StudentDashboardState extends State<StudentDashboard> {
           .collection('attendance_records')
           .where('classId', isEqualTo: widget.classId)
           .where('rollNumber', isEqualTo: widget.rollNo)
-          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime.now().subtract(Duration(days: 30))))
-          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(DateTime.now()))
-          .orderBy('date', descending: true)
+          .orderBy('date')
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          print('Error in records query: ${snapshot.error}');
+          return Center(
+            child: Text(
+              'Error loading records. Please try again later.',
+              style: TextStyle(color: Colors.red),
+            ),
+          );
         }
 
         if (!snapshot.hasData) {
-          return Center(child: CircularProgressIndicator());
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 8),
+                Text('Loading records...'),
+              ],
+            ),
+          );
         }
 
         final records = snapshot.data!.docs;
+        
+        if (records.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue, size: 48),
+                  SizedBox(height: 8),
+                  Text(
+                    'No Records Found',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    'Your attendance records will appear here',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
 
         return Column(
           children: [
@@ -227,13 +317,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
           ),
           SizedBox(height: 20),
           ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => LoginScreen()),
-                (route) => false,
-              );
-            },
+            onPressed: _handleLogout,
             icon: Icon(Icons.logout),
             label: Text('Logout'),
             style: ElevatedButton.styleFrom(
@@ -253,6 +337,13 @@ class _StudentDashboardState extends State<StudentDashboard> {
       appBar: AppBar(
         title: Text('Student Dashboard'),
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: _handleLogout,
+            tooltip: 'Logout',
+          ),
+        ],
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())

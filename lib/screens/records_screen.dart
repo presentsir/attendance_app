@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../services/ai_service.dart';
 import 'package:flutter/services.dart';
+import 'edit_attendance_screen.dart';
 
 class RecordsScreen extends StatefulWidget {
   final String? teacherId;
@@ -206,37 +207,59 @@ class _RecordsScreenState extends State<RecordsScreen> {
         final classes = snapshot.data!.docs;
         return Card(
           child: Padding(
-            padding: EdgeInsets.all(8),
-            child: DropdownButtonFormField<String>(
-              value: _selectedClass,
-              decoration: InputDecoration(
-                labelText: 'Select Class',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.class_),
-              ),
-              items: classes.map((classDoc) {
-                return DropdownMenuItem<String>(
-                  value: classDoc.id,
-                  child: Text(classDoc['name']),
-                );
-              }).toList(),
-              onChanged: (value) {
-                HapticFeedback.selectionClick();
-                setState(() {
-                  _selectedClass = value;
-                  _selectedStudent = null;
-                });
-                _loadAttendanceStats();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Class selected: ${classes.firstWhere((doc) => doc.id == value)['name']}'),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+            padding: EdgeInsets.all(16),
+            child: Column(
+              children: [
+                DropdownButtonFormField<String>(
+                  value: _selectedClass,
+                  decoration: InputDecoration(
+                    labelText: 'Select Class',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.class_),
+                  ),
+                  items: classes.map((classDoc) {
+                    final classData = classDoc.data() as Map<String, dynamic>;
+                    return DropdownMenuItem<String>(
+                      value: classDoc.id,
+                      child: Text(classData['name']),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedClass = value;
+                      _selectedStudent = null;
+                    });
+                    _loadAttendanceStats();
+                  },
+                ),
+                if (_selectedClass != null) ...[
+                  SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      final selectedClassData = classes
+                          .firstWhere((doc) => doc.id == _selectedClass)
+                          .data() as Map<String, dynamic>;
+                      
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => EditAttendanceScreen(
+                            teacherId: widget.teacherId!,
+                            classId: _selectedClass!,
+                            className: selectedClassData['name'],
+                            date: _startDate,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: Icon(Icons.edit),
+                    label: Text('Edit Class Attendance'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: Size(double.infinity, 48),
                     ),
                   ),
-                );
-              },
+                ],
+              ],
             ),
           ),
         );
@@ -663,24 +686,116 @@ class _RecordsScreenState extends State<RecordsScreen> {
             subtitle: Text(
               'Roll No: ${record['rollNumber']} • ${DateFormat('MMM dd, yyyy').format(date)}',
             ),
-            trailing: Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isPresent ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                isPresent ? 'Present' : 'Absent',
-                style: TextStyle(
-                  color: isPresent ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.bold,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isPresent ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    isPresent ? 'Present' : 'Absent',
+                    style: TextStyle(
+                      color: isPresent ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
+                if (widget.teacherId != null) ...[
+                  SizedBox(width: 8),
+                  IconButton(
+                    icon: Icon(Icons.edit, color: Colors.blue),
+                    onPressed: () => _showEditAttendanceDialog(record),
+                  ),
+                ],
+              ],
             ),
           ),
         );
       },
     );
+  }
+
+  Future<void> _showEditAttendanceDialog(DocumentSnapshot record) async {
+    final currentStatus = record['status'] == 'present';
+    final studentName = record['studentName'];
+    final date = DateFormat('MMM dd, yyyy').format((record['date'] as Timestamp).toDate());
+
+    final bool? result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Edit Attendance'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Student: $studentName'),
+            Text('Date: $date'),
+            SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text('Mark Present'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text('Mark Absent'),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result != currentStatus) {
+      try {
+        await _firestore
+            .collection('attendance_records')
+            .doc(record.id)
+            .update({
+          'status': result ? 'present' : 'absent',
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Attendance updated successfully'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } catch (e) {
+        print('Error updating attendance: $e');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating attendance'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _selectDate(bool isStartDate) async {

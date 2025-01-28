@@ -185,15 +185,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   .collection('classes')
                                   .doc(classData.id)
                                   .collection('students')
-                                  .orderBy('rollNumber') // Ensure students are fetched in order
                                   .snapshots(),
                               builder: (context, studentsSnapshot) {
                                 if (!studentsSnapshot.hasData) {
                                   return Center(child: CircularProgressIndicator());
                                 }
 
-                                // Validate roll numbers
+                                // Sort students by roll number numerically
                                 List<DocumentSnapshot> students = studentsSnapshot.data!.docs;
+                                students.sort((a, b) {
+                                  int aRoll = int.tryParse(a['rollNumber'].toString()) ?? 0;
+                                  int bRoll = int.tryParse(b['rollNumber'].toString()) ?? 0;
+                                  return aRoll.compareTo(bRoll);
+                                });
+
+                                // Validate roll numbers
                                 Set<String> rollNumbers = {};
                                 bool hasDuplicates = false;
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'records_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final String teacherId;
@@ -140,8 +141,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             return Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Column(
-                  children: [
+        child: Column(
+          children: [
                     Icon(Icons.warning, color: Colors.orange, size: 48),
                     SizedBox(height: 8),
                     Text(
@@ -161,20 +162,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           return Column(
             children: [
               DropdownButtonFormField<String>(
-                value: _selectedClass,
+                  value: _selectedClass,
                 decoration: InputDecoration(
                   labelText: 'Select Class',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.class_),
                 ),
-                items: classes.map((classDoc) {
+                  items: classes.map((classDoc) {
                   final classData = classDoc.data() as Map<String, dynamic>;
                   print('Creating dropdown item for class: ${classData['name']}');
-                  return DropdownMenuItem<String>(
-                    value: classDoc.id,
+                    return DropdownMenuItem<String>(
+                      value: classDoc.id,
                     child: Text(classData['name'] ?? 'Unnamed Class'),
-                  );
-                }).toList(),
+                    );
+                  }).toList(),
                 onChanged: (value) {
                   if (value != null) {
                     print('Selected class ID: $value');
@@ -188,12 +189,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     });
                     _onClassSelected(value);
                   }
-                },
+                  },
               ),
             ],
-          );
-        },
-      ),
+                );
+              },
+            ),
     );
   }
 
@@ -206,17 +207,83 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           DateFormat('EEEE, dd MMM yyyy').format(_selectedDate),
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        trailing: _attendanceTaken
-            ? Icon(Icons.check_circle, color: Colors.green)
-            : TextButton(
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_attendanceTaken)
+              Icon(Icons.check_circle, color: Colors.green)
+            else
+              TextButton(
                 onPressed: () => _selectDate(context),
                 child: Text('Change Date'),
               ),
+            if (_attendanceTaken) ...[
+              SizedBox(width: 8),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => RecordsScreen(
+                        teacherId: widget.teacherId,
+                        classId: _selectedClass,
+                      ),
+                    ),
+                  );
+                },
+                child: Text('View/Edit'),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildAttendanceUI() {
+    if (_attendanceTaken) {
+      return Expanded(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.check_circle, size: 64, color: Colors.green),
+              SizedBox(height: 16),
+              Text(
+                'Attendance Already Taken',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'You can view or edit attendance in the Records section',
+                style: TextStyle(color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => RecordsScreen(
+                        teacherId: widget.teacherId,
+                        classId: _selectedClass,
+                      ),
+                    ),
+                  );
+                },
+                icon: Icon(Icons.edit),
+                label: Text('View/Edit Records'),
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (_students.isEmpty || _currentStudentIndex >= _students.length) {
       return Expanded(
         child: Center(
@@ -360,7 +427,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           .collection('classes')
           .doc(_selectedClass)
           .collection('students')
-          .orderBy('rollNumber')
           .get();
 
       print('Students query completed. Found: ${studentsSnapshot.docs.length} students');
@@ -373,11 +439,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       setState(() {
         _students = studentsSnapshot.docs
             .map((doc) => {'id': doc.id, ...doc.data()})
-            .toList();
+            .toList()
+          ..sort((a, b) {
+            // Convert roll numbers to integers for proper numerical sorting
+            int aRoll = int.tryParse(a['rollNumber'].toString()) ?? 0;
+            int bRoll = int.tryParse(b['rollNumber'].toString()) ?? 0;
+            return aRoll.compareTo(bRoll);
+          });
         _isLoading = false;
       });
       
-      print('Students loaded: ${_students.length}');
+      print('Students loaded and sorted: ${_students.length}');
+      _students.forEach((student) => print('Roll Number: ${student['rollNumber']}'));
     } catch (e) {
       print('Error loading students: $e');
       if (!mounted) return;
@@ -406,25 +479,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       setState(() {
         _attendanceTaken = attendanceDoc.exists;
       });
-
-      if (_attendanceTaken) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Attendance already taken for this date'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
     } catch (e) {
       print('Error checking attendance: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error checking attendance status'),
-          backgroundColor: Colors.red,
-        ),
-      );
     }
   }
 
@@ -437,10 +493,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
 
     if (picked != null && picked != _selectedDate) {
-      setState(() {
+    setState(() {
         _selectedDate = picked;
-        _currentStudentIndex = 0;
-      });
+      _currentStudentIndex = 0;
+    });
       await _checkAttendance();
     }
   }
