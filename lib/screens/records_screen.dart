@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../services/ai_service.dart';
+import 'package:flutter/services.dart';
 
 class RecordsScreen extends StatefulWidget {
   final String? teacherId;
@@ -25,12 +27,67 @@ class _RecordsScreenState extends State<RecordsScreen> {
   DateTime _startDate = DateTime.now().subtract(Duration(days: 30));
   DateTime _endDate = DateTime.now();
   bool _isLoading = false;
+  Map<String, dynamic> _attendanceStats = {
+    'present': 0,
+    'absent': 0,
+    'total': 0,
+  };
 
   @override
   void initState() {
     super.initState();
     _selectedClass = widget.classId;
     _selectedStudent = widget.studentRollNo;
+    _loadAttendanceStats();
+  }
+
+  Future<void> _loadAttendanceStats() async {
+    if (_selectedClass == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      var query = _firestore
+          .collection('attendance_records')
+          .where('classId', isEqualTo: _selectedClass)
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(_startDate))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(_endDate));
+
+      if (_selectedStudent != null) {
+        query = query.where('rollNumber', isEqualTo: _selectedStudent);
+      }
+
+      final records = await query.get();
+
+      int present = 0;
+      int absent = 0;
+
+      for (var doc in records.docs) {
+        if (doc['status'] == 'present') {
+          present++;
+        } else {
+          absent++;
+        }
+      }
+
+      setState(() {
+        _attendanceStats = {
+          'present': present,
+          'absent': absent,
+          'total': present + absent,
+        };
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading stats: $e');
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading attendance records'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -46,83 +103,154 @@ class _RecordsScreenState extends State<RecordsScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          if (widget.teacherId != null) _buildClassSelector(),
-          _buildDateRangeCard(),
-          _buildAttendanceStats(),
-          Expanded(
-            child: _buildRecordsList(),
-          ),
-        ],
-      ),
+      body: _isLoading
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading records...'),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: () async {
+                HapticFeedback.mediumImpact();
+                await _loadAttendanceStats();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Records refreshed'),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              },
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(16),
+                physics: AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.teacherId != null) _buildClassSelector(),
+                    SizedBox(height: 16),
+                    _buildDateRangeCard(),
+                    SizedBox(height: 16),
+                    _buildAttendanceStatsCards(),
+                    SizedBox(height: 16),
+                    _buildAttendanceChart(),
+                    SizedBox(height: 16),
+                    _buildAIInsights(),
+                    SizedBox(height: 16),
+                    _buildRecordsList(),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 
   Widget _buildClassSelector() {
-    return Padding(
-      padding: EdgeInsets.all(16),
-      child: StreamBuilder<QuerySnapshot>(
-        stream: _firestore
-            .collection('classes')
-            .where('teacherId', isEqualTo: widget.teacherId)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return Center(child: CircularProgressIndicator());
-          }
-
-          var classes = snapshot.data!.docs;
-          return DropdownButtonFormField<String>(
-            value: _selectedClass,
-            decoration: InputDecoration(
-              labelText: 'Select Class',
-              border: OutlineInputBorder(),
-              filled: true,
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore
+          .collection('classes')
+          .where('teacherId', isEqualTo: widget.teacherId)
+          .orderBy('name')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(strokeWidth: 2),
+                    SizedBox(height: 8),
+                    Text('Loading classes...'),
+                  ],
+                ),
+              ),
             ),
-            items: classes.map((classDoc) {
-              return DropdownMenuItem<String>(
-                value: classDoc.id,
-                child: Text(classDoc['name']),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedClass = value;
-                _selectedStudent = null;
-              });
-            },
           );
-        },
-      ),
+        }
+
+        final classes = snapshot.data!.docs;
+        return Card(
+          child: Padding(
+            padding: EdgeInsets.all(8),
+            child: DropdownButtonFormField<String>(
+              value: _selectedClass,
+              decoration: InputDecoration(
+                labelText: 'Select Class',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.class_),
+              ),
+              items: classes.map((classDoc) {
+                return DropdownMenuItem<String>(
+                  value: classDoc.id,
+                  child: Text(classDoc['name']),
+                );
+              }).toList(),
+              onChanged: (value) {
+                HapticFeedback.selectionClick();
+                setState(() {
+                  _selectedClass = value;
+                  _selectedStudent = null;
+                });
+                _loadAttendanceStats();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Class selected: ${classes.firstWhere((doc) => doc.id == value)['name']}'),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildDateRangeCard() {
     return Card(
-      margin: EdgeInsets.all(16),
       child: Padding(
         padding: EdgeInsets.all(16),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('From', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text(DateFormat('dd MMM yyyy').format(_startDate)),
-                ],
+            Text(
+              'Date Range',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            Icon(Icons.arrow_forward),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('To', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text(DateFormat('dd MMM yyyy').format(_endDate)),
-                ],
-              ),
+            SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton.icon(
+                    icon: Icon(Icons.calendar_today),
+                    label: Text(DateFormat('MMM dd, yyyy').format(_startDate)),
+                    onPressed: () => _selectDate(true),
+                  ),
+                ),
+                Icon(Icons.arrow_forward),
+                Expanded(
+                  child: TextButton.icon(
+                    icon: Icon(Icons.calendar_today),
+                    label: Text(DateFormat('MMM dd, yyyy').format(_endDate)),
+                    onPressed: () => _selectDate(false),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -130,306 +258,425 @@ class _RecordsScreenState extends State<RecordsScreen> {
     );
   }
 
-  Widget _buildAttendanceStats() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _getAttendanceQuery().snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return Center(child: CircularProgressIndicator());
-        }
+  Widget _buildAttendanceStatsCards() {
+    final percentage = _attendanceStats['total'] == 0
+        ? 0.0
+        : (_attendanceStats['present'] / _attendanceStats['total']) * 100;
 
-        var records = snapshot.data!.docs;
-        int totalDays = records.length;
-        int presentDays = records
-            .where((doc) => doc['status'] == 'present')
-            .length;
-        double percentage = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
-
-        return Card(
-          margin: EdgeInsets.symmetric(horizontal: 16),
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Text(
-                  'Attendance Overview',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildStatCard(
-                      'Present Days',
-                      presentDays.toString(),
-                      Colors.green,
-                    ),
-                    _buildStatCard(
-                      'Total Days',
-                      totalDays.toString(),
-                      Colors.blue,
-                    ),
-                    _buildStatCard(
-                      'Percentage',
-                      '${percentage.toStringAsFixed(1)}%',
-                      percentage < 60 ? Colors.red : Colors.green,
-                    ),
-                  ],
-                ),
-                if (percentage < 60)
-                  Padding(
-                    padding: EdgeInsets.only(top: 16),
-                    child: Text(
-                      'Warning: Attendance below 60%',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
+    return Row(
+      children: [
+        Expanded(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 32),
+                  SizedBox(height: 8),
+                  Text(
+                    'Present',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  Text(
+                    '${_attendanceStats['present']}',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStatCard(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: color,
+        ),
+        Expanded(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Icon(Icons.cancel, color: Colors.red, size: 32),
+                  SizedBox(height: 8),
+                  Text(
+                    'Absent',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  Text(
+                    '${_attendanceStats['absent']}',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-        Text(label),
+        Expanded(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Icon(Icons.percent, color: Colors.blue, size: 32),
+                  SizedBox(height: 8),
+                  Text(
+                    'Percentage',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  Text(
+                    '${percentage.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildRecordsList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _getAttendanceQuery().snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return Center(child: CircularProgressIndicator());
-        }
+  Widget _buildAIInsights() {
+    if (_selectedClass == null || _attendanceStats['total'] == 0) return SizedBox();
 
-        var records = snapshot.data!.docs;
-        if (records.isEmpty) {
-          return Center(
-            child: Text('No attendance records found'),
+    return FutureBuilder<String>(
+      future: AIService.getClassPerformanceInsights(
+        classStats: {
+          'totalStudents': _attendanceStats['total'],
+          'averageAttendance': (_attendanceStats['present'] / _attendanceStats['total'] * 100).toStringAsFixed(1),
+          'lowestAttendance': '60', // You can calculate this from actual data
+          'highestAttendance': '100', // You can calculate this from actual data
+        },
+        className: _selectedClass ?? 'Unknown',
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  CircularProgressIndicator(strokeWidth: 2),
+                  SizedBox(height: 8),
+                  Text('Generating AI insights...'),
+                ],
+              ),
+            ),
           );
         }
 
-        return ListView.builder(
-          padding: EdgeInsets.all(16),
-          itemCount: records.length,
-          itemBuilder: (context, index) {
-            var record = records[index];
-            DateTime date = (record['date'] as Timestamp).toDate();
-            String status = record['status'];
-            String studentName = record['studentName'] ?? '';
-            String rollNumber = record['rollNumber'] ?? '';
-
-            return Card(
-              child: ListTile(
-                leading: Icon(
-                  status == 'present' ? Icons.check_circle : Icons.cancel,
-                  color: status == 'present' ? Colors.green : Colors.red,
+        return Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.psychology, color: Colors.purple),
+                    SizedBox(width: 8),
+                    Text(
+                      'AI Insights',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-                title: Text(DateFormat('dd MMM yyyy').format(date)),
-                subtitle: widget.teacherId != null
-                    ? Text('$studentName (Roll No: $rollNumber)')
-                    : null,
-                trailing: widget.teacherId != null
-                    ? IconButton(
-                        icon: Icon(Icons.edit),
-                        onPressed: () => _editAttendance(record),
-                      )
-                    : null,
-              ),
-            );
-          },
+                SizedBox(height: 8),
+                Text(
+                  snapshot.data ?? 'No insights available',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  Query<Map<String, dynamic>> _getAttendanceQuery() {
-    Query<Map<String, dynamic>> query = _firestore.collection('attendance_records')
-        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(_startDate))
-        .where('date', isLessThanOrEqualTo: Timestamp.fromDate(_endDate));
-
-    if (widget.teacherId != null) {
-      query = query.where('teacherId', isEqualTo: widget.teacherId);
-      if (_selectedClass != null) {
-        query = query.where('classId', isEqualTo: _selectedClass);
-      }
-      if (_selectedStudent != null) {
-        query = query.where('rollNumber', isEqualTo: _selectedStudent);
-      }
-    } else if (widget.studentRollNo != null) {
-      query = query.where('rollNumber', isEqualTo: widget.studentRollNo);
-    }
-
-    return query.orderBy('date', descending: true);
-  }
-
-  Future<void> _showFilterDialog() async {
-    DateTimeRange? dateRange = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime.now().subtract(Duration(days: 365)),
-      lastDate: DateTime.now(),
-      initialDateRange: DateTimeRange(
-        start: _startDate,
-        end: _endDate,
-      ),
-    );
-
-    if (dateRange != null) {
-      setState(() {
-        _startDate = dateRange.start;
-        _endDate = dateRange.end;
-      });
-    }
-  }
-
-  Future<void> _editAttendance(DocumentSnapshot record) async {
-    bool isPresent = record['status'] == 'present';
-    bool? result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Edit Attendance'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget _buildAttendanceChart() {
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Student: ${record['studentName']}'),
-            Text('Date: ${DateFormat('dd MMM yyyy').format((record['date'] as Timestamp).toDate())}'),
-            SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: Text('Present'),
+            Text(
+              'Attendance Overview',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: PieChart(
+                PieChartData(
+                  sections: [
+                    PieChartSectionData(
+                      color: Colors.green,
+                      value: _attendanceStats['present'].toDouble(),
+                      title: 'Present',
+                      radius: 80,
+                      titleStyle: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    PieChartSectionData(
+                      color: Colors.red,
+                      value: _attendanceStats['absent'].toDouble(),
+                      title: 'Absent',
+                      radius: 80,
+                      titleStyle: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                  sectionsSpace: 2,
+                  centerSpaceRadius: 40,
                 ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: Text('Absent'),
-                ),
-              ],
+              ),
             ),
           ],
         ),
       ),
     );
+  }
 
-    if (result != null && result != isPresent) {
-      try {
-        await record.reference.update({
-          'status': result ? 'present' : 'absent',
-          'lastUpdated': FieldValue.serverTimestamp(),
-        });
+  Widget _buildRecordsList() {
+    if (_selectedClass == null) {
+      return Center(
+        child: Text('Please select a class to view records'),
+      );
+    }
 
-        // Update the main attendance document
-        String dateStr = DateFormat('yyyy-MM-dd').format((record['date'] as Timestamp).toDate());
-        String docId = '${record['classId']}_$dateStr';
-        String rollNumber = record['rollNumber'];
-
-        DocumentSnapshot mainDoc = await _firestore
-            .collection('attendance')
-            .doc(docId)
-            .get();
-
-        if (mainDoc.exists) {
-          Map<String, dynamic> attendance = Map<String, dynamic>.from(mainDoc.get('attendance'));
-          attendance[rollNumber] = result;
-          await mainDoc.reference.update({
-            'attendance': attendance,
-            'lastUpdated': FieldValue.serverTimestamp(),
-          });
+    return StreamBuilder<QuerySnapshot>(
+      stream: _buildAttendanceQuery(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          if (snapshot.error.toString().contains('failed-precondition') ||
+              snapshot.error.toString().contains('requires an index')) {
+            return Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange, size: 48),
+                    SizedBox(height: 8),
+                    Text(
+                      'Database Setup Required',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Please create the following index in Firebase Console:',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    SizedBox(height: 16),
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Collection: attendance_records',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          SizedBox(height: 8),
+                          Text('Fields:'),
+                          Text('1. classId (Ascending)'),
+                          Text('2. date (Ascending)'),
+                          if (_selectedStudent != null)
+                            Text('3. rollNumber (Ascending)'),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      icon: Icon(Icons.open_in_new),
+                      label: Text('Open Firebase Console'),
+                      onPressed: () {
+                        // You can implement URL launcher here if needed
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Please open Firebase Console to create the index'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          return Center(
+            child: Text('Error: ${snapshot.error}'),
+          );
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Attendance updated successfully')),
+        return _buildRecordsListView(snapshot);
+      },
+    );
+  }
+
+  Stream<QuerySnapshot> _buildAttendanceQuery() {
+    Query query = _firestore
+        .collection('attendance_records')
+        .where('classId', isEqualTo: _selectedClass);
+
+    // Add date range filters
+    query = query.where('date', 
+        isGreaterThanOrEqualTo: Timestamp.fromDate(_startDate))
+        .where('date', 
+        isLessThanOrEqualTo: Timestamp.fromDate(_endDate));
+
+    // Add student filter if selected
+    if (_selectedStudent != null) {
+      query = query.where('rollNumber', isEqualTo: _selectedStudent);
+    }
+
+    // Add ordering
+    query = query.orderBy('date', descending: true);
+    if (_selectedStudent == null) {
+      query = query.orderBy('rollNumber', descending: false);
+    }
+
+    return query.snapshots();
+  }
+
+  Widget _buildRecordsListView(AsyncSnapshot<QuerySnapshot> snapshot) {
+    if (!snapshot.hasData) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(strokeWidth: 2),
+            SizedBox(height: 8),
+            Text('Loading records...'),
+          ],
+        ),
+      );
+    }
+
+    final records = snapshot.data!.docs;
+
+    if (records.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue, size: 48),
+              SizedBox(height: 8),
+              Text(
+                'No Records Found',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                'No attendance records for the selected period',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
+      itemCount: records.length,
+      itemBuilder: (context, index) {
+        final record = records[index];
+        final date = (record['date'] as Timestamp).toDate();
+        final isPresent = record['status'] == 'present';
+
+        return Card(
+          margin: EdgeInsets.symmetric(vertical: 4),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: isPresent ? Colors.green : Colors.red,
+              child: Icon(
+                isPresent ? Icons.check : Icons.close,
+                color: Colors.white,
+              ),
+            ),
+            title: Text(
+              record['studentName'],
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(
+              'Roll No: ${record['rollNumber']} • ${DateFormat('MMM dd, yyyy').format(date)}',
+            ),
+            trailing: Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isPresent ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                isPresent ? 'Present' : 'Absent',
+                style: TextStyle(
+                  color: isPresent ? Colors.green : Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
         );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating attendance: $e')),
-        );
-      }
+      },
+    );
+  }
+
+  Future<void> _selectDate(bool isStartDate) async {
+    HapticFeedback.selectionClick();
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: isStartDate ? _startDate : _endDate,
+      firstDate: DateTime.now().subtract(Duration(days: 365)),
+      lastDate: DateTime.now(),
+    );
+
+    if (picked != null) {
+      setState(() {
+        if (isStartDate) {
+          _startDate = picked;
+        } else {
+          _endDate = picked;
+        }
+      });
+      _loadAttendanceStats();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Date updated'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
     }
   }
 
-  Widget _buildAttendanceChart(List<DocumentSnapshot> records) {
-    // Group records by date
-    Map<DateTime, int> dailyAttendance = {};
-    for (var record in records) {
-      final date = (record['date'] as Timestamp).toDate();
-      final key = DateTime(date.year, date.month, date.day);
-      dailyAttendance[key] = (dailyAttendance[key] ?? 0) + (record['status'] == 'present' ? 1 : 0);
-    }
-
-    // Convert to list of FlSpot
-    final spots = dailyAttendance.entries.map((e) {
-      return FlSpot(
-        e.key.millisecondsSinceEpoch.toDouble(),
-        e.value.toDouble(),
-      );
-    }).toList()..sort((a, b) => a.x.compareTo(b.x));
-
-    return Container(
-      height: 200,
-      padding: EdgeInsets.all(16),
-      child: LineChart(
-        LineChartData(
-          gridData: FlGridData(show: false),
-          titlesData: FlTitlesData(
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(showTitles: true),
-            ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (value, meta) {
-                  final date = DateTime.fromMillisecondsSinceEpoch(value.toInt());
-                  return Text(DateFormat('MM/dd').format(date));
-                },
-              ),
-            ),
-            rightTitles: AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            topTitles: AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-          ),
-          borderData: FlBorderData(show: true),
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              color: Colors.blue,
-              barWidth: 3,
-              dotData: FlDotData(show: false),
-            ),
-          ],
-        ),
-      ),
-    );
+  void _showFilterDialog() {
+    // Implement filter dialog if needed
   }
 }
