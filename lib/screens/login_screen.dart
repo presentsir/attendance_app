@@ -63,13 +63,17 @@ class _LoginScreenState extends State<LoginScreen> {
   void _navigateBasedOnUserType(String userType, Map<String, dynamic> userData) {
     if (!mounted) return;
     
+    // Convert the stored school JSON back to a School object
+    final school = School.fromJson(userData['school'] as Map<String, dynamic>);
+    
     if (userType == 'teacher') {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (context) => TeacherDashboard(
             teacherId: userData['teacherId'],
-            school: userData['school'],
+            school: school,  // Use the reconstructed school object
+            teacherName: userData['teacherName'] ?? 'Teacher',
           ),
         ),
       );
@@ -78,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => StudentDashboard(
-            school: userData['school'],
+            school: school,  // Use the reconstructed school object
             rollNo: userData['rollNo'],
             studentName: userData['studentName'],
             classId: userData['classId'],
@@ -148,11 +152,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
         final studentData = studentsQuery.docs.first.data();
 
-        // Save session data
+        // Save student session data
         await UserSession.saveUserSession(
           userType: 'student',
           userData: {
-            'school': _selectedSchool!,
+            'school': _selectedSchool!.toJson(),  // Convert school to JSON
             'rollNo': _rollNoController.text.trim(),
             'studentName': studentData['name'] ?? 'Student',
             'classId': _selectedClassId!,
@@ -195,12 +199,22 @@ class _LoginScreenState extends State<LoginScreen> {
           password: _passwordController.text,
         );
 
+        // Save teacher session data
+        await UserSession.saveUserSession(
+          userType: 'teacher',
+          userData: {
+            'teacherId': userCredential.user!.uid,
+            'school': _selectedSchool!.toJson(),  // Convert school to JSON
+            'teacherName': _emailController.text.split('@')[0],
+          },
+        );
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (_) => TeacherDashboard(
               school: _selectedSchool!,
-              teacherName: _nameController.text,
+              teacherName: _emailController.text.split('@')[0],
               teacherId: userCredential.user!.uid,
             ),
           ),
