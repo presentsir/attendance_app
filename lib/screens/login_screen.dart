@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/json_service.dart';
 import '../models/school_model.dart';
 import 'teacher_dashboard.dart';
@@ -16,12 +17,16 @@ class _LoginScreenState extends State<LoginScreen> {
   final _schoolCodeController = TextEditingController();
   final _nameController = TextEditingController();
   final _rollNoController = TextEditingController();
+  final _mobileController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   String _role = 'student'; // Default role
   List<School> _schools = [];
   School? _selectedSchool;
   bool _isLoading = false;
+  String? _selectedClassId;
+  String? _selectedClassName;
+  List<QueryDocumentSnapshot> _availableClasses = [];
 
   @override
   void initState() {
@@ -42,55 +47,109 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    final schoolCode = int.tryParse(_schoolCodeController.text);
-    if (schoolCode == null && _selectedSchool == null) {
+    if (_selectedSchool == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please select or enter a valid school code')),
+        SnackBar(
+          content: Text('Please select a school first'),
+          backgroundColor: Colors.red,
+        ),
       );
-      setState(() {
-        _isLoading = false;
-      });
       return;
     }
 
-    final school = _selectedSchool ?? _schools.firstWhere(
-      (school) => school.affNo == schoolCode,
-      orElse: () => School(
-        name: '',
-        affNo: 0,
-        state: '',
-        district: '',
-        region: '',
-        address: '',
-        pincode: 0,
-      ),
-    );
+    setState(() => _isLoading = true);
 
-    if (school.affNo == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('School not found')),
-      );
-      setState(() {
-        _isLoading = false;
-      });
-      return;
-    }
+    if (_role == 'student') {
+      if (_selectedClassId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please select your class'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
 
-    if (_role == 'teacher') {
+      if (_rollNoController.text.trim().isEmpty || _mobileController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please enter both roll number and mobile number'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      try {
+        // Verify student credentials directly with the selected class
+        final studentsQuery = await FirebaseFirestore.instance
+            .collection('classes')
+            .doc(_selectedClassId)
+            .collection('students')
+            .where('rollNumber', isEqualTo: _rollNoController.text.trim())
+            .where('mobileNumber', isEqualTo: _mobileController.text.trim())
+            .get();
+
+        if (studentsQuery.docs.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Invalid roll number or mobile number for this class'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
+            ),
+          );
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        final studentData = studentsQuery.docs.first.data();
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Login successful! Welcome, ${studentData['name']}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Navigate to student dashboard
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => StudentDashboard(
+              school: _selectedSchool!,
+              rollNo: _rollNoController.text.trim(),
+              studentName: studentData['name'] ?? 'Student',
+              classId: _selectedClassId!,
+            ),
+          ),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error during login: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isLoading = false);
+      }
+    } else {
       try {
         final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _emailController.text,
           password: _passwordController.text,
         );
 
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => TeacherDashboard(school: school, teacherName: _nameController.text),
+            builder: (_) => TeacherDashboard(
+              school: _selectedSchool!,
+              teacherName: _nameController.text,
+              teacherId: userCredential.user!.uid,
+            ),
           ),
         );
       } on FirebaseAuthException catch (e) {
@@ -119,13 +178,6 @@ class _LoginScreenState extends State<LoginScreen> {
           SnackBar(content: Text('An error occurred. Please try again. Error: $e')),
         );
       }
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => StudentDashboard(school: school, rollNo: _rollNoController.text),
-        ),
-      );
     }
 
     setState(() {
@@ -133,12 +185,169 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
+  Widget _buildStudentLoginFields() {
+    return Column(
+      children: [
+        if (_selectedSchool != null) ...[
+          SizedBox(height: 20),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('classes')
+                .where('schoolId', isEqualTo: _selectedSchool!.affNo.toString())
+                .orderBy('name')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                // Check specifically for the index error
+                if (snapshot.error.toString().contains('failed-precondition') ||
+                    snapshot.error.toString().contains('requires an index')) {
+                  return Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          Icon(Icons.build, color: Colors.orange),
+                          SizedBox(height: 8),
+                          Text(
+                            'Setting up database...',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            'Please wait while we complete the initial setup.',
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 8),
+                          CircularProgressIndicator(),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                return Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Icon(Icons.error, color: Colors.red),
+                        SizedBox(height: 8),
+                        Text(
+                          'Error loading classes',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          'Please try again later',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(
+                  child: Column(
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 8),
+                      Text(
+                        'Loading classes...',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              _availableClasses = snapshot.data?.docs ?? [];
+
+              if (_availableClasses.isEmpty) {
+                return Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Icon(Icons.warning, color: Colors.orange),
+                        SizedBox(height: 8),
+                        Text(
+                          'No classes found for this school',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          'Please contact your teacher to add your class',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return DropdownButtonFormField<String>(
+                value: _selectedClassId,
+                decoration: InputDecoration(
+                  labelText: 'Select Your Class',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.class_),
+                  hintText: 'Choose your class',
+                ),
+                items: _availableClasses.map((classDoc) {
+                  return DropdownMenuItem<String>(
+                    value: classDoc.id,
+                    child: Text(classDoc['name']),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedClassId = value;
+                    _selectedClassName = _availableClasses
+                        .firstWhere((doc) => doc.id == value)['name'];
+                  });
+                },
+              );
+            },
+          ),
+        ],
+        if (_selectedClassId != null) ...[
+          SizedBox(height: 20),
+          TextField(
+            controller: _rollNoController,
+            decoration: InputDecoration(
+              labelText: 'Roll Number',
+              prefixIcon: Icon(Icons.numbers),
+              border: OutlineInputBorder(),
+              hintText: 'Enter your roll number',
+            ),
+            keyboardType: TextInputType.number,
+          ),
+          SizedBox(height: 20),
+          TextField(
+            controller: _mobileController,
+            decoration: InputDecoration(
+              labelText: 'Mobile Number',
+              prefixIcon: Icon(Icons.phone),
+              hintText: 'Enter registered mobile number',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.phone,
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Padding(
+      appBar: AppBar(
+        title: Text('Login'),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             DropdownSearch<School>(
               items: _schools,
@@ -146,6 +355,8 @@ class _LoginScreenState extends State<LoginScreen> {
               onChanged: (School? school) {
                 setState(() {
                   _selectedSchool = school;
+                  _selectedClassId = null;
+                  _selectedClassName = null;
                   if (school != null) {
                     _schoolCodeController.text = school.affNo.toString();
                   }
@@ -155,6 +366,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 dropdownSearchDecoration: InputDecoration(
                   labelText: 'Select a school',
                   hintText: 'Search by school name or code',
+                  border: OutlineInputBorder(),
                 ),
               ),
               popupProps: PopupProps.menu(
@@ -162,71 +374,104 @@ class _LoginScreenState extends State<LoginScreen> {
                 searchFieldProps: TextFieldProps(
                   decoration: InputDecoration(
                     hintText: 'Search by school name or code',
+                    border: OutlineInputBorder(),
                   ),
                 ),
               ),
             ),
             SizedBox(height: 20),
-            TextField(
-              controller: _schoolCodeController,
-              decoration: InputDecoration(labelText: 'Or enter school code (aff_no)'),
-              keyboardType: TextInputType.number,
-              onChanged: (value) {
-                setState(() {
-                  _selectedSchool = null; // Clear selected school if user types manually
-                });
-              },
+            Row(
+              children: [
+                Expanded(
+                  child: RadioListTile(
+                    title: Text('Student'),
+                    value: 'student',
+                    groupValue: _role,
+                    onChanged: (value) => setState(() {
+                      _role = value.toString();
+                      _selectedClassId = null;
+                      _selectedClassName = null;
+                    }),
+                  ),
+                ),
+                Expanded(
+                  child: RadioListTile(
+                    title: Text('Teacher'),
+                    value: 'teacher',
+                    groupValue: _role,
+                    onChanged: (value) => setState(() {
+                      _role = value.toString();
+                      _selectedClassId = null;
+                      _selectedClassName = null;
+                    }),
+                  ),
+                ),
+              ],
             ),
             SizedBox(height: 20),
-            RadioListTile(
-              title: Text('Student'),
-              value: 'student',
-              groupValue: _role,
-              onChanged: (value) => setState(() => _role = value.toString()),
-            ),
-            RadioListTile(
-              title: Text('Teacher'),
-              value: 'teacher',
-              groupValue: _role,
-              onChanged: (value) => setState(() => _role = value.toString()),
-            ),
-            if (_role == 'teacher') ...[
+            if (_role == 'student')
+              _buildStudentLoginFields()
+            else if (_role == 'teacher') ...[
               TextField(
                 controller: _emailController,
-                decoration: InputDecoration(labelText: 'Email'),
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email),
+                  border: OutlineInputBorder(),
+                ),
                 keyboardType: TextInputType.emailAddress,
               ),
               SizedBox(height: 20),
               TextField(
                 controller: _passwordController,
-                decoration: InputDecoration(labelText: 'Password'),
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: Icon(Icons.lock),
+                  border: OutlineInputBorder(),
+                ),
                 obscureText: true,
               ),
             ],
-            if (_role == 'student')
-              TextField(
-                controller: _rollNoController,
-                decoration: InputDecoration(labelText: 'Roll Number'),
-              ),
-            SizedBox(height: 20),
+            SizedBox(height: 30),
             _isLoading
-                ? CircularProgressIndicator()
+                ? Center(child: CircularProgressIndicator())
                 : ElevatedButton(
                     onPressed: _handleLogin,
-                    child: Text('Login'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: Size(double.infinity, 50),
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: Text(
+                      'Login',
+                      style: TextStyle(fontSize: 16),
+                    ),
                   ),
             SizedBox(height: 20),
-            TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TeacherSignInScreen(),
+            if (_role == 'teacher')
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TeacherSignInScreen(),
+                    ),
+                  );
+                },
+                child: Text('Don\'t have an account? Sign Up'),
+              ),
+            if (_role == 'student')
+              Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Text(
+                  'Note: Students can login with roll number and mobile number provided by their teacher.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
                   ),
-                );
-              },
-              child: Text('Don\'t have an account? Sign Up'),
-            ),
+                ),
+              ),
           ],
         ),
       ),

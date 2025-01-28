@@ -8,12 +8,14 @@ class ProfileScreen extends StatefulWidget {
   final String userEmail;
   final int numberOfClasses;
   final Map<String, int> studentsPerClass;
+  final String teacherId;
 
   ProfileScreen({
     required this.school,
     required this.userEmail,
     required this.numberOfClasses,
     required this.studentsPerClass,
+    required this.teacherId,
   });
 
   @override
@@ -156,6 +158,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       return Card(
                         child: ExpansionTile(
                           title: Text(classData['name']),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => _showDeleteConfirmation(classData),
+                              ),
+                              Icon(
+                                _selectedClass == classData.id
+                                    ? Icons.expand_less
+                                    : Icons.expand_more,
+                              ),
+                            ],
+                          ),
                           onExpansionChanged: (expanded) {
                             if (expanded) {
                               setState(() {
@@ -261,10 +277,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     try {
-      // Check if class name already exists
+      // Check if class name already exists for this teacher
       QuerySnapshot existingClasses = await _firestore
           .collection('classes')
           .where('name', isEqualTo: _classNameController.text)
+          .where('teacherId', isEqualTo: widget.teacherId)
+          .where('schoolId', isEqualTo: widget.school.affNo.toString())
           .get();
 
       if (existingClasses.docs.isNotEmpty) {
@@ -276,17 +294,107 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       await _firestore.collection('classes').add({
         'name': _classNameController.text,
+        'teacherId': widget.teacherId,
+        'schoolId': widget.school.affNo.toString(),
         'createdAt': FieldValue.serverTimestamp(),
       });
 
       _classNameController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Class added successfully')),
+        SnackBar(
+          content: Text('Class added successfully'),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (e) {
+      print('Error adding class: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding class: $e')),
+        SnackBar(
+          content: Text('Error adding class: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
+    }
+  }
+
+  Future<void> _showDeleteConfirmation(DocumentSnapshot classDoc) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Class'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Are you sure you want to delete ${classDoc['name']}?'),
+            SizedBox(height: 10),
+            Text(
+              'This will permanently delete all student records and attendance data for this class.',
+              style: TextStyle(color: Colors.red[700], fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        // Delete all students in the class
+        final studentsSnapshot = await classDoc.reference
+            .collection('students')
+            .get();
+        
+        final batch = FirebaseFirestore.instance.batch();
+        
+        // Delete students
+        for (var student in studentsSnapshot.docs) {
+          batch.delete(student.reference);
+        }
+        
+        // Delete attendance records
+        final attendanceSnapshot = await FirebaseFirestore.instance
+            .collection('attendance_records')
+            .where('classId', isEqualTo: classDoc.id)
+            .get();
+            
+        for (var record in attendanceSnapshot.docs) {
+          batch.delete(record.reference);
+        }
+        
+        // Delete the class document
+        batch.delete(classDoc.reference);
+        
+        // Commit the batch
+        await batch.commit();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Class deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting class: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }
