@@ -38,26 +38,48 @@ class _RecordsScreenState extends State<RecordsScreen> {
     super.initState();
     _selectedClass = widget.classId;
     _selectedStudent = widget.studentRollNo;
-    _loadAttendanceStats();
+    
+    // Add debug prints
+    print('RecordsScreen initialized with:');
+    print('Teacher ID: ${widget.teacherId}');
+    print('Student Roll No: ${widget.studentRollNo}');
+    print('Class ID: ${widget.classId}');
+    
+    Future.delayed(Duration.zero, () {
+      _loadAttendanceStats();
+    });
   }
 
   Future<void> _loadAttendanceStats() async {
-    if (_selectedClass == null) return;
+    if (_selectedClass == null && widget.studentRollNo == null) return;
 
     setState(() => _isLoading = true);
 
     try {
-      var query = _firestore
-          .collection('attendance_records')
-          .where('classId', isEqualTo: _selectedClass)
+      // Start with base query
+      Query query = _firestore.collection('attendance_records');
+
+      // Add class filter
+      if (_selectedClass != null) {
+        query = query.where('classId', isEqualTo: _selectedClass);
+      }
+
+      // Add student filter if viewing student records
+      if (widget.studentRollNo != null) {
+        query = query.where('rollNumber', isEqualTo: widget.studentRollNo);
+      }
+
+      // Add date range filters
+      query = query
           .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(_startDate))
           .where('date', isLessThanOrEqualTo: Timestamp.fromDate(_endDate));
 
-      if (_selectedStudent != null) {
-        query = query.where('rollNumber', isEqualTo: _selectedStudent);
-      }
-
       final records = await query.get();
+
+      print('Found ${records.docs.length} records');
+      records.docs.forEach((doc) {
+        print('Record: ${doc.data()}');
+      });
 
       int present = 0;
       int absent = 0;
@@ -78,13 +100,17 @@ class _RecordsScreenState extends State<RecordsScreen> {
         };
         _isLoading = false;
       });
+
+      print('Stats updated: $_attendanceStats');
     } catch (e) {
       print('Error loading stats: $e');
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error loading attendance records'),
+          content: Text('Error loading attendance records: $e'),
           backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 4),
         ),
       );
     }
@@ -483,7 +509,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'Please create the following index in Firebase Console:',
+                      'Please create the following indexes in Firebase Console:',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 14),
                     ),
@@ -497,29 +523,34 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Collection: attendance_records',
+                          Text('Collection: attendance_records (with "a", not "e")',
                               style: TextStyle(fontWeight: FontWeight.bold)),
                           SizedBox(height: 8),
-                          Text('Fields:'),
+                          Text('Index 1:'),
                           Text('1. classId (Ascending)'),
                           Text('2. date (Ascending)'),
-                          if (_selectedStudent != null)
-                            Text('3. rollNumber (Ascending)'),
+                          Text('3. rollNumber (Ascending)'),
+                          SizedBox(height: 8),
+                          Text('Index 2:'),
+                          Text('1. classId (Ascending)'),
+                          Text('2. date (Ascending)'),
                         ],
                       ),
                     ),
                     SizedBox(height: 16),
+                    Text(
+                      'Note: Make sure the collection name is "attendance_records" not "attendence_records"',
+                      style: TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 16),
                     ElevatedButton.icon(
-                      icon: Icon(Icons.open_in_new),
-                      label: Text('Open Firebase Console'),
+                      icon: Icon(Icons.refresh),
+                      label: Text('Retry'),
                       onPressed: () {
-                        // You can implement URL launcher here if needed
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Please open Firebase Console to create the index'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                        setState(() {
+                          // Trigger rebuild
+                        });
                       },
                     ),
                   ],
@@ -538,26 +569,32 @@ class _RecordsScreenState extends State<RecordsScreen> {
   }
 
   Stream<QuerySnapshot> _buildAttendanceQuery() {
-    Query query = _firestore
-        .collection('attendance_records')
-        .where('classId', isEqualTo: _selectedClass);
+    // Start with base query
+    Query query = _firestore.collection('attendance_records');
+
+    // Add class filter
+    if (_selectedClass != null) {
+      query = query.where('classId', isEqualTo: _selectedClass);
+    }
+
+    // Add student filter if viewing student records
+    if (widget.studentRollNo != null) {
+      query = query.where('rollNumber', isEqualTo: widget.studentRollNo);
+    }
 
     // Add date range filters
-    query = query.where('date', 
-        isGreaterThanOrEqualTo: Timestamp.fromDate(_startDate))
-        .where('date', 
-        isLessThanOrEqualTo: Timestamp.fromDate(_endDate));
-
-    // Add student filter if selected
-    if (_selectedStudent != null) {
-      query = query.where('rollNumber', isEqualTo: _selectedStudent);
-    }
+    query = query
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(_startDate))
+        .where('date', isLessThanOrEqualTo: Timestamp.fromDate(_endDate));
 
     // Add ordering
     query = query.orderBy('date', descending: true);
-    if (_selectedStudent == null) {
-      query = query.orderBy('rollNumber', descending: false);
-    }
+
+    print('Query parameters:');
+    print('Class ID: $_selectedClass');
+    print('Student Roll No: ${widget.studentRollNo}');
+    print('Start Date: $_startDate');
+    print('End Date: $_endDate');
 
     return query.snapshots();
   }

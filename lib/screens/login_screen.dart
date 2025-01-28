@@ -7,6 +7,7 @@ import '../models/school_model.dart';
 import 'teacher_dashboard.dart';
 import 'student_dashboard.dart';
 import 'teacher_signin_screen.dart'; // Import the teacher sign-in screen
+import '../services/user_session.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -32,6 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _loadSchools();
+    _checkExistingSession();
   }
 
   Future<void> _loadSchools() async {
@@ -44,6 +46,46 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _schools = schools;
     });
+  }
+
+  Future<void> _checkExistingSession() async {
+    final isLoggedIn = await UserSession.isLoggedIn();
+    if (isLoggedIn) {
+      final userType = await UserSession.getUserType();
+      final userData = await UserSession.getUserData();
+      
+      if (userData != null && userType != null) {
+        _navigateBasedOnUserType(userType, userData);
+      }
+    }
+  }
+
+  void _navigateBasedOnUserType(String userType, Map<String, dynamic> userData) {
+    if (!mounted) return;
+    
+    if (userType == 'teacher') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TeacherDashboard(
+            teacherId: userData['teacherId'],
+            school: userData['school'],
+          ),
+        ),
+      );
+    } else if (userType == 'student') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => StudentDashboard(
+            school: userData['school'],
+            rollNo: userData['rollNo'],
+            studentName: userData['studentName'],
+            classId: userData['classId'],
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _handleLogin() async {
@@ -105,6 +147,17 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         final studentData = studentsQuery.docs.first.data();
+
+        // Save session data
+        await UserSession.saveUserSession(
+          userType: 'student',
+          userData: {
+            'school': _selectedSchool!,
+            'rollNo': _rollNoController.text.trim(),
+            'studentName': studentData['name'] ?? 'Student',
+            'classId': _selectedClassId!,
+          },
+        );
 
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(

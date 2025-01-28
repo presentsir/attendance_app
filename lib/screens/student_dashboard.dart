@@ -36,9 +36,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
   Future<void> _calculateAttendance() async {
     try {
       final QuerySnapshot attendanceSnapshot = await FirebaseFirestore.instance
-          .collection('attendance')
+          .collection('attendance_records')
           .where('classId', isEqualTo: widget.classId)
           .where('rollNumber', isEqualTo: widget.rollNo)
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime.now().subtract(Duration(days: 30))))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(DateTime.now()))
           .get();
 
       int totalDays = attendanceSnapshot.docs.length;
@@ -71,11 +73,17 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 
   Widget _buildRecordsTab() {
+    print('Building records tab with parameters:');
+    print('Class ID: ${widget.classId}');
+    print('Roll Number: ${widget.rollNo}');
+    
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('attendance')
+          .collection('attendance_records')
           .where('classId', isEqualTo: widget.classId)
           .where('rollNumber', isEqualTo: widget.rollNo)
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime.now().subtract(Duration(days: 30))))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(DateTime.now()))
           .orderBy('date', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
