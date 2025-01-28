@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/school_model.dart'; // Import your School model
+import '../models/school_model.dart';
+import 'bulk_student_upload.dart';
 
 class ProfileScreen extends StatefulWidget {
   final School school;
   final String userEmail;
-  final int numberOfClasses; // Add this parameter
-  final Map<String, int> studentsPerClass; // Add this parameter
+  final int numberOfClasses;
+  final Map<String, int> studentsPerClass;
 
   ProfileScreen({
     required this.school,
@@ -22,9 +23,6 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _classNameController = TextEditingController();
-  final TextEditingController _studentNameController = TextEditingController();
-  final TextEditingController _rollNumberController = TextEditingController();
-  final TextEditingController _mobileNumberController = TextEditingController();
   String? _selectedClass;
 
   @override
@@ -37,18 +35,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Display School Information
+            // School Information Card
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('School Name: ${widget.school.name}', style: TextStyle(fontSize: 18)),
+                    Text('School Name: ${widget.school.name}',
+                        style: TextStyle(fontSize: 18)),
                     SizedBox(height: 10),
-                    Text('School Code: ${widget.school.affNo}', style: TextStyle(fontSize: 18)),
+                    Text('School Code: ${widget.school.affNo}',
+                        style: TextStyle(fontSize: 18)),
                     SizedBox(height: 10),
-                    Text('Email: ${widget.userEmail}', style: TextStyle(fontSize: 18)),
+                    Text('Email: ${widget.userEmail}',
+                        style: TextStyle(fontSize: 18)),
                   ],
                 ),
               ),
@@ -56,63 +57,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SizedBox(height: 20),
 
             // Add Class Section
-            TextField(
-              controller: _classNameController,
-              decoration: InputDecoration(labelText: 'Class Name'),
-            ),
-            ElevatedButton(
-              onPressed: _addClass,
-              child: Text('Add Class'),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _classNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Class Name',
+                      hintText: 'Enter class name (e.g., Class 1-A)',
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: _addClass,
+                  child: Text('Add Class'),
+                ),
+              ],
             ),
             SizedBox(height: 20),
 
-            // Add Student Section
-            StreamBuilder<QuerySnapshot>(
-              stream: _firestore.collection('classes').snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return CircularProgressIndicator();
-                var classes = snapshot.data!.docs;
-                return DropdownButton<String>(
-                  value: _selectedClass,
-                  hint: Text('Select Class'),
-                  items: classes.map((classDoc) {
-                    return DropdownMenuItem<String>(
-                      value: classDoc.id,
-                      child: Text(classDoc['name']),
+            // Bulk Upload Button
+            ElevatedButton(
+              onPressed: () async {
+                if (_selectedClass != null) {
+                  // Check for existing roll numbers first
+                  final QuerySnapshot studentsSnapshot = await _firestore
+                      .collection('classes')
+                      .doc(_selectedClass)
+                      .collection('students')
+                      .orderBy('rollNumber')
+                      .get();
+
+                  if (studentsSnapshot.docs.isNotEmpty) {
+                    // Show warning dialog if students exist
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text('Existing Students'),
+                        content: Text(
+                            'This class already has students. You can edit existing students or add new ones with higher roll numbers.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => BulkStudentUpload(
+                                    classId: _selectedClass!,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Text('Continue'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text('Cancel'),
+                          ),
+                        ],
+                      ),
                     );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedClass = value;
-                    });
-                  },
-                );
+                  } else {
+                    // No existing students, proceed directly
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BulkStudentUpload(
+                          classId: _selectedClass!,
+                        ),
+                      ),
+                    );
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Please select a class first')),
+                  );
+                }
               },
-            ),
-            TextField(
-              controller: _studentNameController,
-              decoration: InputDecoration(labelText: 'Student Name'),
-            ),
-            TextField(
-              controller: _rollNumberController,
-              decoration: InputDecoration(labelText: 'Roll Number'),
-            ),
-            TextField(
-              controller: _mobileNumberController,
-              decoration: InputDecoration(labelText: 'Mobile Number'),
-            ),
-            ElevatedButton(
-              onPressed: _addStudent,
-              child: Text('Add Student'),
+              child: Text('Bulk Upload Students'),
             ),
             SizedBox(height: 20),
 
-            // Display Classes and Students
+            // Classes and Students List
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: _firestore.collection('classes').snapshots(),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData) return CircularProgressIndicator();
+                  if (!snapshot.hasData) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+
                   return ListView.builder(
                     itemCount: snapshot.data!.docs.length,
                     itemBuilder: (context, index) {
@@ -120,26 +156,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       return Card(
                         child: ExpansionTile(
                           title: Text(classData['name']),
+                          onExpansionChanged: (expanded) {
+                            if (expanded) {
+                              setState(() {
+                                _selectedClass = classData.id;
+                              });
+                            }
+                          },
                           children: [
                             StreamBuilder<QuerySnapshot>(
                               stream: _firestore
                                   .collection('classes')
                                   .doc(classData.id)
                                   .collection('students')
+                                  .orderBy('rollNumber')  // Order by roll number
                                   .snapshots(),
-                              builder: (context, snapshot) {
-                                if (!snapshot.hasData) return CircularProgressIndicator();
-                                return ListView.builder(
-                                  shrinkWrap: true,
-                                  itemCount: snapshot.data!.docs.length,
-                                  itemBuilder: (context, index) {
-                                    var student = snapshot.data!.docs[index];
-                                    return ListTile(
-                                      title: Text(student['name']),
-                                      subtitle: Text(
-                                          'Roll: ${student['rollNumber']}, Mobile: ${student['mobileNumber']}'),
+                              builder: (context, studentsSnapshot) {
+                                if (!studentsSnapshot.hasData) {
+                                  return Center(child: CircularProgressIndicator());
+                                }
+
+                                // Validate roll numbers
+                                List<DocumentSnapshot> students = studentsSnapshot.data!.docs;
+                                Set<String> rollNumbers = {};
+                                bool hasDuplicates = false;
+
+                                for (var student in students) {
+                                  String rollNumber = student['rollNumber'];
+                                  if (rollNumbers.contains(rollNumber)) {
+                                    hasDuplicates = true;
+                                    break;
+                                  }
+                                  rollNumbers.add(rollNumber);
+                                }
+
+                                // Show warning if duplicates found
+                                if (hasDuplicates) {
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'Warning: Duplicate roll numbers detected in ${classData['name']}'),
+                                        backgroundColor: Colors.red,
+                                        duration: Duration(seconds: 5),
+                                      ),
                                     );
-                                  },
+                                  });
+                                }
+
+                                return Column(
+                                  children: [
+                                    if (students.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: Text(
+                                          'Total Students: ${students.length}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ListView.builder(
+                                      shrinkWrap: true,
+                                      physics: NeverScrollableScrollPhysics(),
+                                      itemCount: students.length,
+                                      itemBuilder: (context, index) {
+                                        var student = students[index];
+                                        return ListTile(
+                                          title: Text(student['name']),
+                                          subtitle: Text(
+                                            'Roll: ${student['rollNumber']}, Mobile: ${student['mobileNumber']}',
+                                          ),
+                                          // Add warning icon for duplicate roll numbers
+                                          trailing: rollNumbers.contains(student['rollNumber'])
+                                              ? Icon(Icons.warning, color: Colors.red)
+                                              : null,
+                                        );
+                                      },
+                                    ),
+                                  ],
                                 );
                               },
                             ),
@@ -158,31 +253,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _addClass() async {
-    if (_classNameController.text.isNotEmpty) {
+    if (_classNameController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter a class name')),
+      );
+      return;
+    }
+
+    try {
+      // Check if class name already exists
+      QuerySnapshot existingClasses = await _firestore
+          .collection('classes')
+          .where('name', isEqualTo: _classNameController.text)
+          .get();
+
+      if (existingClasses.docs.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('A class with this name already exists')),
+        );
+        return;
+      }
+
       await _firestore.collection('classes').add({
         'name': _classNameController.text,
+        'createdAt': FieldValue.serverTimestamp(),
       });
-      _classNameController.clear();
-    }
-  }
 
-  void _addStudent() async {
-    if (_selectedClass != null &&
-        _studentNameController.text.isNotEmpty &&
-        _rollNumberController.text.isNotEmpty &&
-        _mobileNumberController.text.isNotEmpty) {
-      await _firestore
-          .collection('classes')
-          .doc(_selectedClass)
-          .collection('students')
-          .add({
-        'name': _studentNameController.text,
-        'rollNumber': _rollNumberController.text,
-        'mobileNumber': _mobileNumberController.text,
-      });
-      _studentNameController.clear();
-      _rollNumberController.clear();
-      _mobileNumberController.clear();
+      _classNameController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Class added successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error adding class: $e')),
+      );
     }
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/school_model.dart'; // Import your School model
 import 'profile_screen.dart'; // Import your profile screen
+import 'attendance_screen.dart'; // Import your attendance screen
+import 'records_screen.dart'; // Import your records screen
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth for user email
 
 class TeacherDashboard extends StatefulWidget {
@@ -24,8 +26,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     super.initState();
     // Initialize the screens with the required data
     _screens = [
-      // AttendanceScreen(), // Your attendance screen
-      // RecordsScreen(), // Your records screen
+      AttendanceScreen(), // Your attendance screen
+      RecordsScreen(), // Your records screen
       ProfileScreen(
         school: widget.school, // Pass the school object
         userEmail: FirebaseAuth.instance.currentUser!.email!, // Pass the user's email
