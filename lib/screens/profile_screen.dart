@@ -86,7 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       .collection('classes')
                       .doc(_selectedClass)
                       .collection('students')
-                      .orderBy('rollNumber')
+                      .orderBy('rollNumber') // Ensure students are fetched in order
                       .get();
 
                   if (studentsSnapshot.docs.isNotEmpty) {
@@ -169,7 +169,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   .collection('classes')
                                   .doc(classData.id)
                                   .collection('students')
-                                  .orderBy('rollNumber')  // Order by roll number
+                                  .orderBy('rollNumber') // Ensure students are fetched in order
                                   .snapshots(),
                               builder: (context, studentsSnapshot) {
                                 if (!studentsSnapshot.hasData) {

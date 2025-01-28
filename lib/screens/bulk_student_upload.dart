@@ -31,6 +31,7 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
           .collection('classes')
           .doc(widget.classId)
           .collection('students')
+          .orderBy('rollNumber') // Ensure students are fetched in order
           .get();
 
       _students.clear();
@@ -196,6 +197,8 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
           mobileController: TextEditingController(),
         ));
       }
+      // Sort the students list by roll number
+      _students.sort((a, b) => int.parse(a.rollNumber).compareTo(int.parse(b.rollNumber)));
     });
   }
 
