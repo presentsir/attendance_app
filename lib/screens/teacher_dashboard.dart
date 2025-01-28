@@ -4,12 +4,19 @@ import 'profile_screen.dart'; // Import your profile screen
 import 'attendance_screen.dart'; // Import your attendance screen
 import 'records_screen.dart'; // Import your records screen
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth for user email
+import 'login_screen.dart';
+import '../services/user_session.dart';
 
 class TeacherDashboard extends StatefulWidget {
   final School school; // School data passed from the login screen
   final String teacherName; // Teacher name passed from the login screen
+  final String teacherId;  // Add teacherId
 
-  TeacherDashboard({required this.school, required this.teacherName});
+  TeacherDashboard({
+    required this.school,
+    required this.teacherName,
+    required this.teacherId,  // Add teacherId parameter
+  });
 
   @override
   _TeacherDashboardState createState() => _TeacherDashboardState();
@@ -26,19 +33,14 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     super.initState();
     // Initialize the screens with the required data
     _screens = [
-      AttendanceScreen(), // Your attendance screen
-      RecordsScreen(), // Your records screen
+      AttendanceScreen(teacherId: widget.teacherId),  // Pass teacherId
+      RecordsScreen(teacherId: widget.teacherId),  // Pass teacherId
       ProfileScreen(
-        school: widget.school, // Pass the school object
-        userEmail: FirebaseAuth.instance.currentUser!.email!, // Pass the user's email
-        numberOfClasses: 5, // Example: Pass the number of classes
-        studentsPerClass: {
-          '1': 30,
-          '2': 28,
-          '3': 32,
-          '4': 29,
-          '5': 31,
-        }, // Example: Pass students per class
+        school: widget.school,
+        userEmail: widget.teacherName,
+        numberOfClasses: 0,
+        studentsPerClass: {},
+        teacherId: widget.teacherId,  // Add teacherId here
       ),
     ];
   }
@@ -49,20 +51,44 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     });
   }
 
+  Future<void> _handleLogout() async {
+    await UserSession.clearSession();
+    if (!mounted) return;
+    
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => LoginScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_selectedIndex], // Display the selected screen
+      appBar: AppBar(
+        title: Text('Teacher Dashboard'),
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: _handleLogout,
+          ),
+        ],
+      ),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
+            icon: Icon(Icons.check_circle_outline),
             label: 'Attendance',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.list_alt),
+            icon: Icon(Icons.history),
             label: 'Records',
           ),
           BottomNavigationBarItem(
