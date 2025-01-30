@@ -1,9 +1,6 @@
 # attendance_app
 
 A new Flutter project.
-## 📥 Download  
-[⬇️ Download Latest APK](https://github.com/presentsir/attendance_app/build/app/flutter-apk/app-release.apk)  
-
 
 ## Getting Started
 
