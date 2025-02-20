@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/school_model.dart';
 import 'bulk_student_upload.dart';
+import 'bluetooth_service.dart';
+import 'dart:convert';
+import 'dart:convert' show utf8;
 
 class ProfileScreen extends StatefulWidget {
   final School school;
@@ -26,6 +29,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _classNameController = TextEditingController();
   String? _selectedClass;
+  BluetoothService _bluetoothService = BluetoothService();
+  String? _syncStatus;
+  bool _isConnected = false;
+  bool _isSyncing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -268,6 +275,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
               ),
             ),
+
+            // Add after the school information card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.bluetooth, color: Colors.blue),
+                        SizedBox(width: 8),
+                        Text(
+                          'ESP32 Device',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        Spacer(),
+                        _buildConnectionStatus(),
+                      ],
+                    ),
+                    SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _connectESP32Device,
+                      icon: Icon(Icons.bluetooth_searching),
+                      label: Text('Connect ESP32 Device'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: Size(double.infinity, 50),
+                      ),
+                    ),
+                    if (_syncStatus != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          _syncStatus!,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -363,27 +414,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final studentsSnapshot = await classDoc.reference
             .collection('students')
             .get();
-        
+
         final batch = FirebaseFirestore.instance.batch();
-        
+
         // Delete students
         for (var student in studentsSnapshot.docs) {
           batch.delete(student.reference);
         }
-        
+
         // Delete attendance records
         final attendanceSnapshot = await FirebaseFirestore.instance
             .collection('attendance_records')
             .where('classId', isEqualTo: classDoc.id)
             .get();
-            
+
         for (var record in attendanceSnapshot.docs) {
           batch.delete(record.reference);
         }
-        
+
         // Delete the class document
         batch.delete(classDoc.reference);
-        
+
         // Commit the batch
         await batch.commit();
 
@@ -402,5 +453,161 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     }
+  }
+
+  Widget _buildConnectionStatus() {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _isConnected ? Colors.green : Colors.red,
+          ),
+        ),
+        SizedBox(width: 8),
+        Text(
+          _isConnected ? 'Connected' : 'Disconnected',
+          style: TextStyle(
+            color: _isConnected ? Colors.green : Colors.red,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _connectESP32Device() async {
+    try {
+      setState(() => _syncStatus = 'Scanning for devices...');
+
+      final devices = await _bluetoothService.scanForDevices();
+
+      if (devices.isEmpty) {
+        setState(() => _syncStatus = 'No ESP32 devices found');
+        return;
+      }
+
+      // Show device selection dialog if multiple devices found
+      BluetoothDevice selectedDevice;
+      if (devices.length > 1) {
+        selectedDevice = await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Select ESP32 Device'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: devices.map((device) =>
+                ListTile(
+                  title: Text(device.name),
+                  onTap: () => Navigator.pop(context, device),
+                ),
+              ).toList(),
+            ),
+          ),
+        );
+      } else {
+        selectedDevice = devices.first;
+      }
+
+      if (selectedDevice == null) return;
+
+      setState(() => _syncStatus = 'Connecting...');
+      await _bluetoothService.connectToDevice(selectedDevice);
+
+      setState(() {
+        _isConnected = true;
+        _syncStatus = 'Connected! Starting sync...';
+        _isSyncing = true;
+      });
+
+      // Start the sync process
+      await _syncData();
+
+    } catch (e) {
+      setState(() {
+        _isConnected = false;
+        _syncStatus = 'Error: ${e.toString()}';
+      });
+    }
+  }
+
+  Future<void> _syncData() async {
+    try {
+      // 1. First sync: Send all class and student data
+      setState(() => _syncStatus = 'Syncing class data...');
+
+      // Get all classes for this teacher
+      final classesSnapshot = await _firestore
+          .collection('classes')
+          .where('teacherId', isEqualTo: widget.teacherId)
+          .get();
+
+      final classesData = await Future.wait(
+        classesSnapshot.docs.map((classDoc) async {
+          // Get students for each class
+          final studentsSnapshot = await classDoc.reference
+              .collection('students')
+              .orderBy('rollNumber')
+              .get();
+
+          return {
+            'classId': classDoc.id,
+            'className': classDoc['name'],
+            'students': studentsSnapshot.docs.map((doc) => doc.data()).toList(),
+          };
+        })
+      );
+
+      // Send class data to ESP32
+      await _bluetoothService.sendClassData(json.encode({
+        'type': 'sync_classes',
+        'classes': classesData,
+      }));
+
+      // 2. Check for pending attendance data from ESP32
+      setState(() => _syncStatus = 'Checking for pending attendance...');
+
+      // Listen for attendance data from ESP32
+      _bluetoothService.getAttendanceData().listen((data) async {
+        try {
+          final attendanceData = json.decode(utf8.decode(data));
+
+          // Show sync progress
+          setState(() => _syncStatus = 'Syncing attendance for ${attendanceData['className']}...');
+
+          // Upload attendance to Firebase
+          await _uploadAttendance(attendanceData);
+
+          setState(() => _syncStatus = 'Attendance synced successfully!');
+        } catch (e) {
+          print('Error processing attendance data: $e');
+        }
+      });
+
+    } catch (e) {
+      setState(() => _syncStatus = 'Sync error: ${e.toString()}');
+    } finally {
+      setState(() => _isSyncing = false);
+    }
+  }
+
+  Future<void> _uploadAttendance(Map<String, dynamic> attendanceData) async {
+    final batch = _firestore.batch();
+
+    for (var record in attendanceData['attendance']) {
+      final docRef = _firestore.collection('attendance_records').doc();
+      batch.set(docRef, {
+        'classId': attendanceData['classId'],
+        'date': DateTime.fromMillisecondsSinceEpoch(record['timestamp'] * 1000),
+        'rollNumber': record['rollNumber'],
+        'status': record['status'],
+        'teacherId': widget.teacherId,
+        'synced': true,
+        'syncTimestamp': FieldValue.serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
   }
 }

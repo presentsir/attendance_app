@@ -41,6 +41,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_launcher_icons: ^0.11.0
   http: ^1.1.0  # For AI API calls
+  flutter_blue_plus: ^1.31.15
+  wifi_iot: ^0.3.18
+  network_info_plus: ^4.0.2
 
 
 dev_dependencies:
