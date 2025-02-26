@@ -45,5 +45,14 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Need Bluetooth access to connect to ESP32 device</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Need Bluetooth access to connect to ESP32 device</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+		<string>bluetooth-peripheral</string>
+	</array>
 </dict>
 </plist>

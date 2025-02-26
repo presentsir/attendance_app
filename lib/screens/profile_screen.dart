@@ -83,53 +83,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ElevatedButton(
               onPressed: () async {
                 if (_selectedClass != null) {
-                  // Check for existing roll numbers first
-                  final QuerySnapshot studentsSnapshot = await _firestore
-                      .collection('classes')
-                      .doc(_selectedClass)
-                      .collection('students')
-                      .orderBy('rollNumber') // Ensure students are fetched in order
-                      .get();
+                  try {
+                    // Check for existing roll numbers first
+                    final QuerySnapshot studentsSnapshot = await _firestore
+                        .collection('classes')
+                        .doc(_selectedClass)
+                        .collection('students')
+                        .orderBy('rollNumber') // Ensure students are fetched in order
+                        .get();
 
-                  if (studentsSnapshot.docs.isNotEmpty) {
-                    // Show warning dialog if students exist
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text('Existing Students'),
-                        content: Text(
-                            'This class already has students. You can edit existing students or add new ones with higher roll numbers.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => BulkStudentUpload(
-                                    classId: _selectedClass!,
+                    if (studentsSnapshot.docs.isNotEmpty) {
+                      // Show warning dialog if students exist
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: Text('Existing Students'),
+                          content: Text(
+                              'This class already has students. You can edit existing students or add new ones with higher roll numbers.'),
+                          actions: [
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => BulkStudentUpload(
+                                      classId: _selectedClass!,
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
-                            child: Text('Continue'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text('Cancel'),
-                          ),
-                        ],
-                      ),
-                    );
-                  } else {
-                    // No existing students, proceed directly
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => BulkStudentUpload(
-                          classId: _selectedClass!,
+                                );
+                              },
+                              child: Text('Continue'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text('Cancel'),
+                            ),
+                          ],
                         ),
-                      ),
+                      );
+                    } else {
+                      // No existing students, proceed directly
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BulkStudentUpload(
+                            classId: _selectedClass!,
+                          ),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    // Log the error
+                    print('Error during bulk upload: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error during bulk upload: $e')),
                     );
                   }
                 } else {
@@ -363,27 +371,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final studentsSnapshot = await classDoc.reference
             .collection('students')
             .get();
-        
+
         final batch = FirebaseFirestore.instance.batch();
-        
+
         // Delete students
         for (var student in studentsSnapshot.docs) {
           batch.delete(student.reference);
         }
-        
+
         // Delete attendance records
         final attendanceSnapshot = await FirebaseFirestore.instance
             .collection('attendance_records')
             .where('classId', isEqualTo: classDoc.id)
             .get();
-            
+
         for (var record in attendanceSnapshot.docs) {
           batch.delete(record.reference);
         }
-        
+
         // Delete the class document
         batch.delete(classDoc.reference);
-        
+
         // Commit the batch
         await batch.commit();
 

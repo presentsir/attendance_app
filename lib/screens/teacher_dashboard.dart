@@ -6,6 +6,7 @@ import 'records_screen.dart'; // Import your records screen
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth for user email
 import 'login_screen.dart';
 import '../services/user_session.dart';
+import '../widgets/esp32_connection_status.dart';
 
 class TeacherDashboard extends StatefulWidget {
   final School school; // School data passed from the login screen
@@ -54,7 +55,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   Future<void> _handleLogout() async {
     await UserSession.clearSession();
     if (!mounted) return;
-    
+
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => LoginScreen()),
@@ -75,9 +76,19 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _screens,
+      body: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: ESP32ConnectionStatus(),
+          ),
+          Expanded(
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: _screens,
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
