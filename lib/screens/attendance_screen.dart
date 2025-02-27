@@ -43,28 +43,32 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   _buildDateHeader(),
                   _buildAttendanceUI(),
                 ] else if (_selectedClass != null && _students.isEmpty) ...[
-                  Expanded(
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.warning, size: 64, color: Colors.orange),
-                          SizedBox(height: 16),
-                          Text(
-                            'No students found in this class',
-                            style: TextStyle(fontSize: 18),
-                          ),
-                          Text(
-                            'Add students in the profile section',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  _buildNoStudentsMessage(),
                 ],
               ],
             ),
+    );
+  }
+
+  Widget _buildNoStudentsMessage() {
+    return Expanded(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.warning, size: 64, color: Colors.orange),
+            SizedBox(height: 16),
+            Text(
+              'No students found in this class',
+              style: TextStyle(fontSize: 18),
+            ),
+            Text(
+              'Add students in the profile section',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
