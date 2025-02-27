@@ -43,6 +43,7 @@ dependencies:
   http: ^1.1.0  # For AI API calls
   flutter_bluetooth_serial: ^0.4.0
   typed_data: ^1.3.0  # Add this for Uint8List
+  permission_handler: ^11.0.1
 
 
 dev_dependencies:

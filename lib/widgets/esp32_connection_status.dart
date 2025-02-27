@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import '../esp32/esp32_service.dart';
 import 'dart:async';
-import 'package:permission_handler/permission_handler.dart';
 
 class ESP32ConnectionStatus extends StatefulWidget {
   @override
@@ -29,42 +28,21 @@ class _ESP32ConnectionStatusState extends State<ESP32ConnectionStatus> {
   }
 
   Future<void> _initBluetooth() async {
-    try {
-      // Check if all permissions are granted
-      bool hasPermissions = await _checkPermissions();
-      if (!hasPermissions) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Please grant all required permissions to use Bluetooth'),
-              action: SnackBarAction(
-                label: 'Settings',
-                onPressed: () => openAppSettings(),
-              ),
-            ),
-          );
-        }
-        return;
-      }
+    if (!_esp32Service.isPlatformSupported) return;
 
+    try {
       await _esp32Service.init();
 
-      // Listen for connection state changes
       _esp32Service.connectionState.listen((connected) {
         if (mounted) {
           setState(() => _isConnected = connected);
         }
       });
 
-      // Listen for discovered devices
       _esp32Service.discoveredDevices.listen((devices) {
         if (mounted) {
           setState(() {
             _devices = devices;
-            print('Updated devices list: ${devices.length} devices');
-            devices.forEach((device) {
-              print('Device: ${device.name ?? 'Unknown'} (${device.address})');
-            });
           });
         }
       });
@@ -73,18 +51,6 @@ class _ESP32ConnectionStatusState extends State<ESP32ConnectionStatus> {
     } catch (e) {
       print('Error initializing Bluetooth: $e');
     }
-  }
-
-  Future<bool> _checkPermissions() async {
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.location,
-      Permission.bluetooth,
-      Permission.bluetoothScan,
-      Permission.bluetoothConnect,
-      Permission.bluetoothAdvertise,
-    ].request();
-
-    return statuses.values.every((status) => status.isGranted);
   }
 
   Future<void> _refreshDevices() async {

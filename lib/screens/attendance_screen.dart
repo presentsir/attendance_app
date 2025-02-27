@@ -5,7 +5,7 @@ import 'records_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final String teacherId;
-  
+
   AttendanceScreen({required this.teacherId});
 
   @override
@@ -130,7 +130,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           }
 
           final classes = snapshot.data?.docs ?? [];
-          
+
           print('Classes found: ${classes.length}');
           classes.forEach((classDoc) {
             print('Class ID: ${classDoc.id}');
@@ -182,7 +182,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     final selectedClass = classes.firstWhere((doc) => doc.id == value);
                     final classData = selectedClass.data() as Map<String, dynamic>;
                     print('Selected class data: $classData');
-                    
+
                     setState(() {
                       _selectedClass = value;
                       _selectedClassName = classData['name'];
@@ -241,160 +241,84 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Widget _buildAttendanceUI() {
-    if (_attendanceTaken) {
-      return Expanded(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.check_circle, size: 64, color: Colors.green),
-              SizedBox(height: 16),
-              Text(
-                'Attendance Already Taken',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'You can view or edit attendance in the Records section',
-                style: TextStyle(color: Colors.grey[600]),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => RecordsScreen(
-                        teacherId: widget.teacherId,
-                        classId: _selectedClass,
-                      ),
-                    ),
-                  );
-                },
-                icon: Icon(Icons.edit),
-                label: Text('View/Edit Records'),
-                style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-              ),
-            ],
+    return Column(
+      children: [
+        if (!_attendanceTaken) ...[
+          Divider(),
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'Or Take Attendance Manually',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
           ),
-        ),
-      );
-    }
+          _buildManualAttendanceUI(),
+        ],
+      ],
+    );
+  }
 
+  Widget _buildManualAttendanceUI() {
     if (_students.isEmpty || _currentStudentIndex >= _students.length) {
-      return Expanded(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.check_circle, size: 64, color: Colors.green),
-              SizedBox(height: 16),
-              Text(
-                'Attendance Complete!',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _currentStudentIndex = 0;
-                  });
-                },
-                child: Text('Start Over'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    var currentStudent = _students[_currentStudentIndex];
-    return Expanded(
-      child: Padding(
-        padding: EdgeInsets.all(16),
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Icon(Icons.check_circle, size: 64, color: Colors.green),
+            SizedBox(height: 16),
             Text(
-              'Roll No: ${currentStudent['rollNumber']}',
+              'Attendance Complete!',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final currentStudent = _students[_currentStudentIndex];
+    return Card(
+      margin: EdgeInsets.all(16),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text(
+              'Student ${_currentStudentIndex + 1} of ${_students.length}',
+              style: TextStyle(color: Colors.grey),
             ),
             SizedBox(height: 8),
             Text(
               currentStudent['name'],
-              style: TextStyle(fontSize: 20),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 40),
+            Text(
+              'Roll No: ${currentStudent['rollNumber']}',
+              style: TextStyle(fontSize: 18),
+            ),
+            SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildAttendanceButton(
-                  true,
-                  Icons.check_circle_outline,
-                  Colors.green,
-                  'Present',
+                ElevatedButton.icon(
+                  onPressed: () => _markAttendance(true),
+                  icon: Icon(Icons.check),
+                  label: Text('Present'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                  ),
                 ),
-                _buildAttendanceButton(
-                  false,
-                  Icons.cancel_outlined,
-                  Colors.red,
-                  'Absent',
-                ),
-              ],
-            ),
-            SizedBox(height: 40),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: Icon(Icons.arrow_back_ios, size: 32),
-                  onPressed: _currentStudentIndex > 0
-                      ? () => setState(() => _currentStudentIndex--)
-                      : null,
-                ),
-                SizedBox(width: 40),
-                Text(
-                  '${_currentStudentIndex + 1}/${_students.length}',
-                  style: TextStyle(fontSize: 20),
-                ),
-                SizedBox(width: 40),
-                IconButton(
-                  icon: Icon(Icons.arrow_forward_ios, size: 32),
-                  onPressed: _currentStudentIndex < _students.length - 1
-                      ? () => setState(() => _currentStudentIndex++)
-                      : null,
+                ElevatedButton.icon(
+                  onPressed: () => _markAttendance(false),
+                  icon: Icon(Icons.close),
+                  label: Text('Absent'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                  ),
                 ),
               ],
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildAttendanceButton(bool isPresent, IconData icon, Color color, String label) {
-    return ElevatedButton(
-      onPressed: () => _markAttendance(isPresent),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 48),
-          SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(fontSize: 18),
-          ),
-        ],
       ),
     );
   }
@@ -409,7 +333,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     await _loadStudents();
     await _checkAttendance();
-    
+
     setState(() => _isLoading = false);
   }
 
@@ -422,7 +346,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       print('Loading students for class: $_selectedClass');
       setState(() => _isLoading = true);
-      
+
       var studentsSnapshot = await _firestore
           .collection('classes')
           .doc(_selectedClass)
@@ -448,7 +372,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           });
         _isLoading = false;
       });
-      
+
       print('Students loaded and sorted: ${_students.length}');
       _students.forEach((student) => print('Roll Number: ${student['rollNumber']}'));
     } catch (e) {
@@ -466,7 +390,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   Future<void> _checkAttendance() async {
     if (_selectedClass == null) return;
-    
+
     try {
       String dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
       var attendanceDoc = await _firestore
