@@ -53,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (isLoggedIn) {
       final userType = await UserSession.getUserType();
       final userData = await UserSession.getUserData();
-      
+
       if (userData != null && userType != null) {
         _navigateBasedOnUserType(userType, userData);
       }
@@ -62,10 +62,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _navigateBasedOnUserType(String userType, Map<String, dynamic> userData) {
     if (!mounted) return;
-    
+
     // Convert the stored school JSON back to a School object
     final school = School.fromJson(userData['school'] as Map<String, dynamic>);
-    
+
     if (userType == 'teacher') {
       Navigator.pushReplacement(
         context,
@@ -143,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
             SnackBar(
               content: Text('Invalid roll number or mobile number for this class'),
               backgroundColor: Colors.red,
-              duration: Duration(seconds: 4),
+              duration: const Duration(seconds: 4),
             ),
           );
           setState(() => _isLoading = false);

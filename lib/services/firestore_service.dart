@@ -12,7 +12,7 @@ class FirestoreService {
     } catch (e) {
       print('Failed to add student: $e');
       // Optionally, you can rethrow the error or handle it in a way that suits your application
-      throw e;
+      rethrow;
     }
   }
 }

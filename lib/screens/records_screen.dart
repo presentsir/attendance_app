@@ -25,7 +25,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? _selectedClass;
   String? _selectedStudent;
-  DateTime _startDate = DateTime.now().subtract(Duration(days: 30));
+  DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
   DateTime _endDate = DateTime.now();
   bool _isLoading = false;
   Map<String, dynamic> _attendanceStats = {
@@ -39,13 +39,13 @@ class _RecordsScreenState extends State<RecordsScreen> {
     super.initState();
     _selectedClass = widget.classId;
     _selectedStudent = widget.studentRollNo;
-    
+
     // Add debug prints
     print('RecordsScreen initialized with:');
     print('Teacher ID: ${widget.teacherId}');
     print('Student Roll No: ${widget.studentRollNo}');
     print('Class ID: ${widget.classId}');
-    
+
     Future.delayed(Duration.zero, () {
       _loadAttendanceStats();
     });
@@ -78,9 +78,9 @@ class _RecordsScreenState extends State<RecordsScreen> {
       final records = await query.get();
 
       print('Found ${records.docs.length} records');
-      records.docs.forEach((doc) {
+      for (var doc in records.docs) {
         print('Record: ${doc.data()}');
-      });
+      }
 
       int present = 0;
       int absent = 0;
@@ -111,7 +111,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
           content: Text('Error loading attendance records: $e'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 4),
+          duration: const Duration(seconds: 4),
         ),
       );
     }
@@ -239,7 +239,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       final selectedClassData = classes
                           .firstWhere((doc) => doc.id == _selectedClass)
                           .data() as Map<String, dynamic>;
-                      
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -781,7 +781,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
           SnackBar(
             content: Text('Attendance updated successfully'),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       } catch (e) {
@@ -791,7 +791,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
           SnackBar(
             content: Text('Error updating attendance'),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -803,7 +803,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: isStartDate ? _startDate : _endDate,
-      firstDate: DateTime.now().subtract(Duration(days: 365)),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now(),
     );
 

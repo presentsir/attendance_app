@@ -5,7 +5,7 @@ import 'records_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final String teacherId;
-  
+
   AttendanceScreen({required this.teacherId});
 
   @override
@@ -130,7 +130,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           }
 
           final classes = snapshot.data?.docs ?? [];
-          
+
           print('Classes found: ${classes.length}');
           classes.forEach((classDoc) {
             print('Class ID: ${classDoc.id}');
@@ -182,7 +182,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     final selectedClass = classes.firstWhere((doc) => doc.id == value);
                     final classData = selectedClass.data() as Map<String, dynamic>;
                     print('Selected class data: $classData');
-                    
+
                     setState(() {
                       _selectedClass = value;
                       _selectedClassName = classData['name'];
@@ -409,7 +409,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     await _loadStudents();
     await _checkAttendance();
-    
+
     setState(() => _isLoading = false);
   }
 
@@ -422,7 +422,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       print('Loading students for class: $_selectedClass');
       setState(() => _isLoading = true);
-      
+
       var studentsSnapshot = await _firestore
           .collection('classes')
           .doc(_selectedClass)
@@ -430,9 +430,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           .get();
 
       print('Students query completed. Found: ${studentsSnapshot.docs.length} students');
-      studentsSnapshot.docs.forEach((doc) {
+      for (var doc in studentsSnapshot.docs) {
         print('Student data: ${doc.data()}');
-      });
+      }
 
       if (!mounted) return;
 
@@ -448,9 +448,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           });
         _isLoading = false;
       });
-      
+
       print('Students loaded and sorted: ${_students.length}');
-      _students.forEach((student) => print('Roll Number: ${student['rollNumber']}'));
+      for (var student in _students) {
+        print('Roll Number: ${student['rollNumber']}');
+      }
     } catch (e) {
       print('Error loading students: $e');
       if (!mounted) return;
@@ -466,7 +468,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   Future<void> _checkAttendance() async {
     if (_selectedClass == null) return;
-    
+
     try {
       String dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
       var attendanceDoc = await _firestore
@@ -488,7 +490,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(Duration(days: 30)),
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
       lastDate: DateTime.now(),
     );
 

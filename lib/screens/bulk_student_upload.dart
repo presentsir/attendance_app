@@ -16,7 +16,7 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
   final TextEditingController _endRollController = TextEditingController();
   final List<StudentData> _students = [];
   bool _isLoading = true;
-  Set<String> _existingRollNumbers = {};
+  final Set<String> _existingRollNumbers = {};
 
   @override
   void initState() {
@@ -182,7 +182,7 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
       if (_existingRollNumbers.contains(i.toString()) ||
           newRollNumbers.contains(i.toString())) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Roll number ${i} already exists')),
+          SnackBar(content: Text('Roll number $i already exists')),
         );
         return;
       }

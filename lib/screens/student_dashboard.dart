@@ -51,8 +51,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
       if (!mounted) return;
 
       setState(() {
-        _attendancePercentage = totalDays > 0 
-            ? (presentDays / totalDays) * 100 
+        _attendancePercentage = totalDays > 0
+            ? (presentDays / totalDays) * 100
             : 0.0;
         _isLoading = false;
       });
@@ -62,7 +62,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
           SnackBar(
             content: Text('Warning: Your attendance is below 60%'),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 5),
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -108,7 +108,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
     try {
       await UserSession.clearSession();
       if (!mounted) return;
-      
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => LoginScreen()),
@@ -130,7 +130,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
     print('Building records tab with parameters:');
     print('Class ID: ${widget.classId}');
     print('Roll Number: ${widget.rollNo}');
-    
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('attendance_records')
@@ -163,7 +163,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
         }
 
         final records = snapshot.data!.docs;
-        
+
         if (records.isEmpty) {
           return Card(
             child: Padding(
@@ -210,8 +210,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
                               style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
-                                color: _attendancePercentage < 60 
-                                    ? Colors.red 
+                                color: _attendancePercentage < 60
+                                    ? Colors.red
                                     : Colors.green,
                               ),
                             ),
@@ -249,19 +249,19 @@ class _StudentDashboardState extends State<StudentDashboard> {
                     margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: ListTile(
                       leading: Icon(
-                        status == 'present' 
-                            ? Icons.check_circle 
+                        status == 'present'
+                            ? Icons.check_circle
                             : Icons.cancel,
-                        color: status == 'present' 
-                            ? Colors.green 
+                        color: status == 'present'
+                            ? Colors.green
                             : Colors.red,
                       ),
                       title: Text(date),
                       subtitle: Text(
                         status.toString().toUpperCase(),
                         style: TextStyle(
-                          color: status == 'present' 
-                              ? Colors.green 
+                          color: status == 'present'
+                              ? Colors.green
                               : Colors.red,
                         ),
                       ),

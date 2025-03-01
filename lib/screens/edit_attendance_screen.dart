@@ -24,7 +24,7 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   List<Map<String, dynamic>> _students = [];
-  Map<String, bool> _tempAttendance = {};
+  final Map<String, bool> _tempAttendance = {};
   bool _hasUnsavedChanges = false;
 
   @override
@@ -60,13 +60,13 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
       _students = studentsSnapshot.docs.map((doc) {
         final data = doc.data();
         final rollNumber = data['rollNumber'].toString();
-        
+
         // If there's an existing attendance record, use it
         // Otherwise, check if any attendance exists for the class
         if (!_tempAttendance.containsKey(rollNumber)) {
           _tempAttendance[rollNumber] = attendanceSnapshot.docs.isNotEmpty;
         }
-        
+
         return {
           'name': data['name'],
           'rollNumber': rollNumber,
@@ -125,7 +125,7 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
       for (var student in _students) {
         final String docId = '${widget.classId}_${dateStr}_${student['rollNumber']}';
         final docRef = _firestore.collection('attendance_records').doc(docId);
-        
+
         batch.set(docRef, {
           'classId': widget.classId,
           'date': Timestamp.fromDate(widget.date),
@@ -138,9 +138,9 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
       }
 
       await batch.commit();
-      
+
       setState(() => _hasUnsavedChanges = false);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -270,8 +270,8 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
                             ),
                             trailing: Switch(
                               value: isPresent,
-                              onChanged: _isSaving 
-                                  ? null 
+                              onChanged: _isSaving
+                                  ? null
                                   : (_) => _toggleAttendance(student['rollNumber']),
                               activeColor: Colors.green,
                               inactiveThumbColor: Colors.red,
@@ -335,4 +335,4 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
       ),
     );
   }
-} 
+}

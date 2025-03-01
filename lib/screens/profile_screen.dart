@@ -220,7 +220,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         content: Text(
                                             'Warning: Duplicate roll numbers detected in ${classData['name']}'),
                                         backgroundColor: Colors.red,
-                                        duration: Duration(seconds: 5),
+                                        duration: const Duration(seconds: 5),
                                       ),
                                     );
                                   });
@@ -363,27 +363,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final studentsSnapshot = await classDoc.reference
             .collection('students')
             .get();
-        
+
         final batch = FirebaseFirestore.instance.batch();
-        
+
         // Delete students
         for (var student in studentsSnapshot.docs) {
           batch.delete(student.reference);
         }
-        
+
         // Delete attendance records
         final attendanceSnapshot = await FirebaseFirestore.instance
             .collection('attendance_records')
             .where('classId', isEqualTo: classDoc.id)
             .get();
-            
+
         for (var record in attendanceSnapshot.docs) {
           batch.delete(record.reference);
         }
-        
+
         // Delete the class document
         batch.delete(classDoc.reference);
-        
+
         // Commit the batch
         await batch.commit();
 
