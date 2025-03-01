@@ -33,6 +33,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
     'absent': 0,
     'total': 0,
   };
+  Map<String, dynamic> _weeklyTrends = {};
+  Map<String, dynamic> _dayWiseAttendance = {};
 
   @override
   void initState() {
@@ -517,73 +519,24 @@ class _RecordsScreenState extends State<RecordsScreen> {
       stream: _buildAttendanceQuery(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          if (snapshot.error.toString().contains('failed-precondition') ||
-              snapshot.error.toString().contains('requires an index')) {
-            return Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Icon(Icons.warning, color: Colors.orange, size: 48),
-                    SizedBox(height: 8),
-                    Text(
-                      'Database Setup Required',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Please create the following indexes in Firebase Console:',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    SizedBox(height: 16),
-                    Container(
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Collection: attendance_records (with "a", not "e")',
-                              style: TextStyle(fontWeight: FontWeight.bold)),
-                          SizedBox(height: 8),
-                          Text('Index 1:'),
-                          Text('1. classId (Ascending)'),
-                          Text('2. date (Ascending)'),
-                          Text('3. rollNumber (Ascending)'),
-                          SizedBox(height: 8),
-                          Text('Index 2:'),
-                          Text('1. classId (Ascending)'),
-                          Text('2. date (Ascending)'),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Note: Make sure the collection name is "attendance_records" not "attendence_records"',
-                      style: TextStyle(color: Colors.red),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      icon: Icon(Icons.refresh),
-                      label: Text('Retry'),
-                      onPressed: () {
-                        setState(() {
-                          // Trigger rebuild
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
           return Center(
-            child: Text('Error: ${snapshot.error}'),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, color: Colors.red),
+                SizedBox(height: 8),
+                Text('Unable to load records'),
+                ElevatedButton(
+                  onPressed: () => setState(() {}),
+                  child: Text('Retry'),
+                ),
+              ],
+            ),
           );
+        }
+
+        if (!snapshot.hasData) {
+          return Center(child: CircularProgressIndicator());
         }
 
         return _buildRecordsListView(snapshot);
@@ -830,5 +783,223 @@ class _RecordsScreenState extends State<RecordsScreen> {
 
   void _showFilterDialog() {
     // Implement filter dialog if needed
+  }
+
+  Widget _buildEnhancedAnalytics() {
+    return Column(
+      children: [
+        _buildWeeklyTrendChart(),
+        SizedBox(height: 16),
+        _buildDetailedInsights(),
+        SizedBox(height: 16),
+        _buildStudentPerformanceCards(),
+      ],
+    );
+  }
+
+  Widget _buildWeeklyTrendChart() {
+    if (_weeklyTrends.isEmpty) return SizedBox();
+
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Weekly Attendance Trends',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        getTitlesWidget: (value, meta) {
+                          return Text('${value.toInt()}%');
+                        },
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          return Text('Week ${value.toInt() + 1}');
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: true),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: _weeklyTrends['attendance']!
+                          .asMap()
+                          .entries
+                          .map((e) => FlSpot(e.key.toDouble(), e.value))
+                          .toList(),
+                      isCurved: true,
+                      color: Colors.blue,
+                      barWidth: 3,
+                      dotData: FlDotData(show: true),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStudentPerformanceCards() {
+    if (_selectedClass == null) return SizedBox();
+
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Attendance Overview',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildPerformanceCard(
+                    title: 'Regular',
+                    value: '${(_attendanceStats['present'] / (_attendanceStats['total'] == 0 ? 1 : _attendanceStats['total']) * 100).toStringAsFixed(0)}%',
+                    icon: Icons.star,
+                    color: Colors.green,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: _buildPerformanceCard(
+                    title: 'Absent',
+                    value: '${(_attendanceStats['absent'] / (_attendanceStats['total'] == 0 ? 1 : _attendanceStats['total']) * 100).toStringAsFixed(0)}%',
+                    icon: Icons.warning,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+            if (_dayWiseAttendance.isNotEmpty) ...[
+              SizedBox(height: 16),
+              Text(
+                'Best Attendance Days',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Row(
+                children: _dayWiseAttendance.entries
+                    .toList()
+                    .take(3)
+                    .map((e) => Expanded(
+                          child: Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    e.key.substring(0, 3),
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  Text('${e.value} present'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailedInsights() {
+    return FutureBuilder<String>(
+      future: AIService.getClassPerformanceInsights(
+        classStats: {
+          'totalStudents': _attendanceStats['total'],
+          'averageAttendance': (_attendanceStats['present'] / (_attendanceStats['total'] == 0 ? 1 : _attendanceStats['total']) * 100).toStringAsFixed(1),
+          'presentDays': _attendanceStats['present'].toString(),
+          'absentDays': _attendanceStats['absent'].toString(),
+          'dateRange': '${DateFormat('MMM dd').format(_startDate)} - ${DateFormat('MMM dd').format(_endDate)}',
+        },
+        className: _selectedClass ?? 'Unknown',
+      ),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return SizedBox();
+
+        return Card(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.insights, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Text(
+                      'Attendance Insights',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                Text(
+                  snapshot.data!,
+                  style: TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPerformanceCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 32),
+            SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(fontSize: 16),
+            ),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

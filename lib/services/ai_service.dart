@@ -50,36 +50,28 @@ class AIService {
     required String className,
   }) async {
     try {
-      final prompt = '''
-        Analyze this class's attendance pattern:
-        Class: $className
-        Total Students: ${classStats['totalStudents']}
-        Average Attendance: ${classStats['averageAttendance']}%
-        Lowest Attendance: ${classStats['lowestAttendance']}%
-        Highest Attendance: ${classStats['highestAttendance']}%
+      final double attendance = double.parse(classStats['averageAttendance']);
+      final int totalDays = int.parse(classStats['presentDays']) + int.parse(classStats['absentDays']);
 
-        Provide insights about the class performance and suggestions for improvement.
-        Keep the response within 2-3 sentences.
-      ''';
+      if (totalDays == 0) return '';
 
-      final response = await http.post(
-        Uri.parse('$_baseUrl?key=$_apiKey'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [{
-            'parts': [{'text': prompt}]
-          }]
-        }),
-      );
+      String insight = 'Class $className has ${classStats['averageAttendance']}% attendance ';
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['candidates'][0]['content']['parts'][0]['text'];
+      if (attendance >= 90) {
+        insight += 'which is excellent! Keep up the good work.';
+      } else if (attendance >= 75) {
+        insight += 'which is good, but there\'s room for improvement.';
+      } else {
+        insight += 'which needs attention. Consider implementing attendance improvement strategies.';
       }
-      return 'Unable to generate insights at the moment.';
+
+      insight += '\nTotal days: $totalDays (Present: ${classStats['presentDays']}, Absent: ${classStats['absentDays']})';
+      insight += '\nPeriod: ${classStats['dateRange']}';
+
+      return insight;
     } catch (e) {
-      print('Error generating AI insights: $e');
-      return 'Unable to generate insights at the moment.';
+      print('Error generating insights: $e');
+      return '';
     }
   }
 
@@ -122,5 +114,62 @@ class AIService {
       print('Error generating AI predictions: $e');
       return 'Unable to generate predictions at the moment.';
     }
+  }
+
+  static Future<Map<String, dynamic>> getDetailedAttendanceInsights({
+    required Map<String, dynamic> stats,
+  }) async {
+    try {
+      final weeklyTrends = stats['weeklyTrends'] as List<double>;
+      final trend = _analyzeTrend(weeklyTrends);
+
+      return {
+        'trend': _getTrendDescription(trend),
+        'bestDay': _analyzeBestDay(stats['dayWiseAttendance']),
+        'concerns': _identifyConcerns(stats),
+      };
+    } catch (e) {
+      print('Error generating detailed insights: $e');
+      return {};
+    }
+  }
+
+  static String _getTrendDescription(double trend) {
+    if (trend > 5) {
+      return 'Attendance is showing significant improvement';
+    } else if (trend > 0) {
+      return 'Slight positive trend in attendance';
+    } else if (trend < -5) {
+      return 'Significant decline in attendance rates';
+    } else if (trend < 0) {
+      return 'Minor decline in attendance';
+    }
+    return 'Attendance rates are stable';
+  }
+
+  static double _analyzeTrend(List<double> weeklyTrends) {
+    if (weeklyTrends.length < 2) return 0;
+    return weeklyTrends.last - weeklyTrends.first;
+  }
+
+  static String _analyzeBestDay(Map<String, int> dayWiseAttendance) {
+    if (dayWiseAttendance.isEmpty) return 'Not enough data';
+
+    final bestDay = dayWiseAttendance.entries
+        .reduce((a, b) => a.value > b.value ? a : b)
+        .key;
+
+    return 'Highest attendance on $bestDay';
+  }
+
+  static String _identifyConcerns(Map<String, dynamic> stats) {
+    final attendance = double.parse(stats['averageAttendance']);
+
+    if (attendance < 75) {
+      return 'Attendance below required threshold';
+    } else if (attendance < 85) {
+      return 'Room for improvement in overall attendance';
+    }
+    return 'No major concerns';
   }
 }
