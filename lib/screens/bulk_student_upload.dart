@@ -1,6 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+class StudentData {
+  final String rollNumber;
+  final String? id;
+  final TextEditingController nameController;
+  final TextEditingController mobileController;
+  String gender = 'Male';
+  String familyStructure = 'Nuclear';
+  String parentEducation = 'High School';
+  String residentialArea = 'Urban';
+  String academicTrend = 'Average';
+  final TextEditingController lastYearGradeController;
+  final TextEditingController familyIncomeController;
+
+  StudentData({
+    required this.rollNumber,
+    this.id,
+    required this.nameController,
+    required this.mobileController,
+    TextEditingController? lastYearGradeController,
+    TextEditingController? familyIncomeController,
+  })  : lastYearGradeController =
+            lastYearGradeController ?? TextEditingController(),
+        familyIncomeController =
+            familyIncomeController ?? TextEditingController();
+}
+
 class BulkStudentUpload extends StatefulWidget {
   final String classId;
 
@@ -17,6 +43,25 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
   final List<StudentData> _students = [];
   bool _isLoading = true;
   final Set<String> _existingRollNumbers = {};
+  int _selectedIndex = -1;
+
+  final List<String> genderOptions = ['Male', 'Female', 'Prefer not to say'];
+  final List<String> familyStructureOptions = [
+    'Nuclear',
+    'Joint',
+    'Single Parent',
+    'NGO Support',
+    'Orphan'
+  ];
+  final List<String> parentEducationOptions = [
+    'High School',
+    'Graduate',
+    'Post Graduate',
+    'Others',
+    'None'
+  ];
+  final List<String> residentialAreaOptions = ['Urban', 'Rural'];
+  final List<String> academicTrendOptions = ['Good', 'Average', 'Poor'];
 
   @override
   void initState() {
@@ -31,7 +76,7 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
           .collection('classes')
           .doc(widget.classId)
           .collection('students')
-          .orderBy('rollNumber') // Ensure students are fetched in order
+          .orderBy('rollNumber')
           .get();
 
       _students.clear();
@@ -39,12 +84,23 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
 
       for (var doc in studentsSnapshot.docs) {
         var data = doc.data() as Map<String, dynamic>;
-        _students.add(StudentData(
+        var student = StudentData(
           id: doc.id,
           rollNumber: data['rollNumber'],
           nameController: TextEditingController(text: data['name']),
           mobileController: TextEditingController(text: data['mobileNumber']),
-        ));
+          lastYearGradeController: TextEditingController(
+              text: data['lastYearGrade']?.toString() ?? ''),
+          familyIncomeController: TextEditingController(
+              text: data['familyIncome']?.toString() ?? ''),
+        );
+        student.gender = data['gender'] ?? 'Male';
+        student.familyStructure = data['familyStructure'] ?? 'Nuclear';
+        student.parentEducation = data['parentEducation'] ?? 'High School';
+        student.residentialArea = data['residentialArea'] ?? 'Urban';
+        student.academicTrend = data['academicTrend'] ?? 'Average';
+
+        _students.add(student);
         _existingRollNumbers.add(data['rollNumber']);
       }
 
@@ -57,110 +113,320 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
     }
   }
 
+  Widget _buildStudentCard(StudentData student, int index) {
+    bool isSelected = _selectedIndex == index;
+
+    return Card(
+      elevation: isSelected ? 4 : 1,
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ExpansionTile(
+        onExpansionChanged: (expanded) {
+          setState(() {
+            _selectedIndex = expanded ? index : -1;
+          });
+        },
+        title: Row(
+          children: [
+            CircleAvatar(
+              child: Text(student.rollNumber),
+              backgroundColor: Colors.blue[100],
+            ),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: student.nameController,
+                    decoration: InputDecoration(
+                      labelText: 'Student Name',
+                      border: UnderlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        children: [
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Contact Information
+                Text('Contact Information',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                SizedBox(height: 8),
+                TextField(
+                  controller: student.mobileController,
+                  decoration: InputDecoration(
+                    labelText: 'Mobile Number',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.phone),
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                SizedBox(height: 16),
+
+                // Personal Information
+                Text('Personal Information',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: student.gender,
+                        decoration: InputDecoration(
+                          labelText: 'Gender',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: genderOptions.map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            student.gender = value!;
+                          });
+                        },
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: student.residentialArea,
+                        decoration: InputDecoration(
+                          labelText: 'Residential Area',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: residentialAreaOptions.map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            student.residentialArea = value!;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+
+                // Family Information
+                Text('Family Information',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: student.familyStructure,
+                  decoration: InputDecoration(
+                    labelText: 'Family Structure',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: familyStructureOptions.map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      student.familyStructure = value!;
+                    });
+                  },
+                ),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: student.parentEducation,
+                        decoration: InputDecoration(
+                          labelText: 'Parent Education',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: parentEducationOptions.map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            student.parentEducation = value!;
+                          });
+                        },
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: TextField(
+                        controller: student.familyIncomeController,
+                        decoration: InputDecoration(
+                          labelText: 'Family Income (INR/Year)',
+                          border: OutlineInputBorder(),
+                          prefixText: '₹ ',
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+
+                // Academic Information
+                Text('Academic Information',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: student.academicTrend,
+                        decoration: InputDecoration(
+                          labelText: 'Academic Trend',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: academicTrendOptions.map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            student.academicTrend = value!;
+                          });
+                        },
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: TextField(
+                        controller: student.lastYearGradeController,
+                        decoration: InputDecoration(
+                          labelText: 'Last Year Grade (%)',
+                          border: OutlineInputBorder(),
+                          suffixText: '%',
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Bulk Student Upload'),
+        title: Text('Student Management'),
+        actions: [
+          if (_students.isNotEmpty)
+            IconButton(
+              icon: Icon(Icons.add),
+              onPressed: () => _showAddNewStudentDialog(),
+              tooltip: 'Add New Student',
+            ),
+        ],
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  // Only show roll number range inputs if no existing students
-                  if (_students.isEmpty) ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _startRollController,
-                            decoration: InputDecoration(labelText: 'Start Roll Number'),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: _endRollController,
-                            decoration: InputDecoration(labelText: 'End Roll Number'),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _generateStudentList,
-                      child: Text('Generate Student List'),
-                    ),
-                  ],
-                  SizedBox(height: 20),
-                  // Column headers
+          : Column(
+              children: [
+                if (_students.isEmpty) ...[
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Row(
-                      children: [
-                        Expanded(flex: 1, child: Text('Roll No.', style: TextStyle(fontWeight: FontWeight.bold))),
-                        SizedBox(width: 10),
-                        Expanded(flex: 2, child: Text('Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                        SizedBox(width: 10),
-                        Expanded(flex: 2, child: Text('Mobile Number', style: TextStyle(fontWeight: FontWeight.bold))),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: _students.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 1,
-                                child: Text(_students[index].rollNumber),
+                    padding: const EdgeInsets.all(16.0),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          children: [
+                            Text(
+                              'Add Multiple Students',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                               ),
-                              SizedBox(width: 10),
-                              Expanded(
-                                flex: 2,
-                                child: TextField(
-                                  controller: _students[index].nameController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter name',
-                                    isDense: true,
-                                    border: OutlineInputBorder(),
+                            ),
+                            SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _startRollController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Start Roll Number',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    keyboardType: TextInputType.number,
                                   ),
                                 ),
-                              ),
-                              SizedBox(width: 10),
-                              Expanded(
-                                flex: 2,
-                                child: TextField(
-                                  controller: _students[index].mobileController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter mobile',
-                                    isDense: true,
-                                    border: OutlineInputBorder(),
+                                SizedBox(width: 16),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _endRollController,
+                                    decoration: InputDecoration(
+                                      labelText: 'End Roll Number',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    keyboardType: TextInputType.number,
                                   ),
-                                  keyboardType: TextInputType.phone,
                                 ),
+                              ],
+                            ),
+                            SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: _generateStudentList,
+                              icon: Icon(Icons.group_add),
+                              label: Text('Generate Student List'),
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: Size(double.infinity, 48),
                               ),
-                            ],
-                          ),
-                        );
-                      },
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _saveStudents,
-                    child: Text('Save Students'),
                   ),
                 ],
-              ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _students.length,
+                    itemBuilder: (context, index) =>
+                        _buildStudentCard(_students[index], index),
+                  ),
+                ),
+                if (_students.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: ElevatedButton.icon(
+                      onPressed: _saveStudents,
+                      icon: Icon(Icons.save),
+                      label: Text('Save All Students'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: Size(double.infinity, 48),
+                      ),
+                    ),
+                  ),
+              ],
             ),
     );
   }
@@ -169,9 +435,18 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
     int startRoll = int.tryParse(_startRollController.text) ?? 0;
     int endRoll = int.tryParse(_endRollController.text) ?? 0;
 
+    if (startRoll <= 0 || endRoll <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter valid roll numbers')),
+      );
+      return;
+    }
+
     if (startRoll > endRoll) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Start roll number must be less than end roll number')),
+        SnackBar(
+            content:
+                Text('Start roll number must be less than end roll number')),
       );
       return;
     }
@@ -197,38 +472,87 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
           mobileController: TextEditingController(),
         ));
       }
-      // Sort the students list by roll number
-      _students.sort((a, b) => int.parse(a.rollNumber).compareTo(int.parse(b.rollNumber)));
+      _students.sort(
+          (a, b) => int.parse(a.rollNumber).compareTo(int.parse(b.rollNumber)));
     });
+  }
+
+  Future<void> _showAddNewStudentDialog() async {
+    // Find the highest roll number
+    int highestRoll = _students.isEmpty
+        ? 0
+        : _students
+            .map((s) => int.tryParse(s.rollNumber) ?? 0)
+            .reduce((a, b) => a > b ? a : b);
+
+    String newRollNumber = (highestRoll + 1).toString();
+
+    setState(() {
+      _students.add(StudentData(
+        rollNumber: newRollNumber,
+        nameController: TextEditingController(),
+        mobileController: TextEditingController(),
+      ));
+      _students.sort(
+          (a, b) => int.parse(a.rollNumber).compareTo(int.parse(b.rollNumber)));
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text('New student added with roll number $newRollNumber')),
+    );
   }
 
   Future<void> _saveStudents() async {
     try {
-      // Validation for empty fields
+      // Validation
       for (var student in _students) {
         if (student.nameController.text.isEmpty ||
             student.mobileController.text.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Please fill all fields for roll number ${student.rollNumber}')),
+            SnackBar(
+                content: Text(
+                    'Please fill name and mobile number for roll number ${student.rollNumber}')),
+          );
+          return;
+        }
+
+        // Validate percentage
+        double? percentage =
+            double.tryParse(student.lastYearGradeController.text);
+        if (student.lastYearGradeController.text.isNotEmpty &&
+            (percentage == null || percentage < 0 || percentage > 100)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(
+                    'Invalid percentage for roll number ${student.rollNumber}')),
+          );
+          return;
+        }
+
+        // Validate family income
+        if (student.familyIncomeController.text.isNotEmpty &&
+            double.tryParse(student.familyIncomeController.text) == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(
+                    'Invalid family income for roll number ${student.rollNumber}')),
           );
           return;
         }
       }
 
-      // Batch write to Firestore
       WriteBatch batch = _firestore.batch();
 
       for (var student in _students) {
         DocumentReference docRef;
         if (student.id != null) {
-          // Update existing student
           docRef = _firestore
               .collection('classes')
               .doc(widget.classId)
               .collection('students')
               .doc(student.id);
         } else {
-          // Add new student
           docRef = _firestore
               .collection('classes')
               .doc(widget.classId)
@@ -240,6 +564,18 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
           'rollNumber': student.rollNumber,
           'name': student.nameController.text,
           'mobileNumber': student.mobileController.text,
+          'gender': student.gender,
+          'familyStructure': student.familyStructure,
+          'parentEducation': student.parentEducation,
+          'residentialArea': student.residentialArea,
+          'academicTrend': student.academicTrend,
+          'lastYearGrade': student.lastYearGradeController.text.isNotEmpty
+              ? double.parse(student.lastYearGradeController.text)
+              : null,
+          'familyIncome': student.familyIncomeController.text.isNotEmpty
+              ? double.parse(student.familyIncomeController.text)
+              : null,
+          'lastUpdated': FieldValue.serverTimestamp(),
         });
       }
 
@@ -268,23 +604,11 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
     for (var student in _students) {
       student.nameController.dispose();
       student.mobileController.dispose();
+      student.lastYearGradeController.dispose();
+      student.familyIncomeController.dispose();
     }
     _startRollController.dispose();
     _endRollController.dispose();
     super.dispose();
   }
-}
-
-class StudentData {
-  final String? id;  // Firestore document ID
-  final String rollNumber;
-  final TextEditingController nameController;
-  final TextEditingController mobileController;
-
-  StudentData({
-    this.id,
-    required this.rollNumber,
-    required this.nameController,
-    required this.mobileController,
-  });
 }
