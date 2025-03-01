@@ -60,7 +60,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _navigateBasedOnUserType(String userType, Map<String, dynamic> userData) {
+  void _navigateBasedOnUserType(
+      String userType, Map<String, dynamic> userData) {
     if (!mounted) return;
 
     // Convert the stored school JSON back to a School object
@@ -72,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(
           builder: (context) => TeacherDashboard(
             teacherId: userData['teacherId'],
-            school: school,  // Use the reconstructed school object
+            school: school, // Use the reconstructed school object
             teacherName: userData['teacherName'] ?? 'Teacher',
           ),
         ),
@@ -82,7 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => StudentDashboard(
-            school: school,  // Use the reconstructed school object
+            school: school, // Use the reconstructed school object
             rollNo: userData['rollNo'],
             studentName: userData['studentName'],
             classId: userData['classId'],
@@ -117,7 +118,8 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      if (_rollNoController.text.trim().isEmpty || _mobileController.text.trim().isEmpty) {
+      if (_rollNoController.text.trim().isEmpty ||
+          _mobileController.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Please enter both roll number and mobile number'),
@@ -141,7 +143,8 @@ class _LoginScreenState extends State<LoginScreen> {
         if (studentsQuery.docs.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Invalid roll number or mobile number for this class'),
+              content:
+                  Text('Invalid roll number or mobile number for this class'),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 4),
             ),
@@ -156,7 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
         await UserSession.saveUserSession(
           userType: 'student',
           userData: {
-            'school': _selectedSchool!.toJson(),  // Convert school to JSON
+            'school': _selectedSchool!.toJson(), // Convert school to JSON
             'rollNo': _rollNoController.text.trim(),
             'studentName': studentData['name'] ?? 'Student',
             'classId': _selectedClassId!,
@@ -194,18 +197,46 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } else {
       try {
-        final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        final userCredential =
+            await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _emailController.text,
           password: _passwordController.text,
         );
+
+        // Verify if the teacher belongs to the selected school
+        final teacherDoc = await FirebaseFirestore.instance
+            .collection('teachers')
+            .doc(userCredential.user!.uid)
+            .get();
+
+        if (!teacherDoc.exists) {
+          await FirebaseAuth.instance.signOut();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Teacher account not found')),
+          );
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        final teacherData = teacherDoc.data() as Map<String, dynamic>;
+        if (teacherData['schoolId'] != _selectedSchool!.affNo.toString()) {
+          await FirebaseAuth.instance.signOut();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('You can only login to your registered school')),
+          );
+          setState(() => _isLoading = false);
+          return;
+        }
 
         // Save teacher session data
         await UserSession.saveUserSession(
           userType: 'teacher',
           userData: {
             'teacherId': userCredential.user!.uid,
-            'school': _selectedSchool!.toJson(),  // Convert school to JSON
-            'teacherName': _emailController.text.split('@')[0],
+            'school': _selectedSchool!.toJson(),
+            'teacherName':
+                teacherData['name'] ?? _emailController.text.split('@')[0],
           },
         );
 
@@ -214,7 +245,8 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(
             builder: (_) => TeacherDashboard(
               school: _selectedSchool!,
-              teacherName: _emailController.text.split('@')[0],
+              teacherName:
+                  teacherData['name'] ?? _emailController.text.split('@')[0],
               teacherId: userCredential.user!.uid,
             ),
           ),
@@ -242,7 +274,8 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('An error occurred. Please try again. Error: $e')),
+          SnackBar(
+              content: Text('An error occurred. Please try again. Error: $e')),
         );
       }
     }
@@ -281,7 +314,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           Text(
                             'Please wait while we complete the initial setup.',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                            style: TextStyle(
+                                color: Colors.grey[600], fontSize: 12),
                             textAlign: TextAlign.center,
                           ),
                           SizedBox(height: 8),
@@ -304,7 +338,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         Text(
                           'Please try again later',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          style:
+                              TextStyle(color: Colors.grey[600], fontSize: 12),
                         ),
                       ],
                     ),
@@ -343,7 +378,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         Text(
                           'Please contact your teacher to add your class',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          style:
+                              TextStyle(color: Colors.grey[600], fontSize: 12),
                         ),
                       ],
                     ),
@@ -418,7 +454,8 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             DropdownSearch<School>(
               items: _schools,
-              itemAsString: (School school) => '${school.name} (${school.affNo})',
+              itemAsString: (School school) =>
+                  '${school.name} (${school.affNo})',
               onChanged: (School? school) {
                 setState(() {
                   _selectedSchool = school;

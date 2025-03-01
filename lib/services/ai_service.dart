@@ -2,7 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class AIService {
-  static const String _apiKey = 'AIzaSyAywsP0fNDWU40J_L5l2qKdLUMzAxb-zd8'; // Store this securely
+  static const String _apiKey = 'AIzaSyAZuQaKhxbTelIPtzFvMxyhDhoQAy_NMjg'; // Store this securely
   static const String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
 
   // Smart attendance insights
@@ -123,4 +123,4 @@ class AIService {
       return 'Unable to generate predictions at the moment.';
     }
   }
-} 
+}
