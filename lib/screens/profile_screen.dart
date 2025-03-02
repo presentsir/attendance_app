@@ -387,11 +387,157 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showEditTeacherDialog(Map<String, dynamic> teacherData) {
+    final TextEditingController nameController =
+        TextEditingController(text: teacherData['name']);
+    final TextEditingController phoneController =
+        TextEditingController(text: teacherData['phoneNumber']);
+    final TextEditingController subjectController =
+        TextEditingController(text: teacherData['subject']);
+    String selectedBoard = teacherData['educationBoard'] ?? 'CBSE';
+    final List<String> boards = ['CBSE', 'ICSE', 'State Board'];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Edit Profile'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: 'Name',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                ),
+                SizedBox(height: 16),
+                TextField(
+                  controller: phoneController,
+                  decoration: InputDecoration(
+                    labelText: 'Phone Number',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.phone),
+                    hintText: '10-digit mobile number',
+                  ),
+                  keyboardType: TextInputType.phone,
+                  maxLength: 10,
+                ),
+                SizedBox(height: 16),
+                TextField(
+                  controller: subjectController,
+                  decoration: InputDecoration(
+                    labelText: 'Subject',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.book),
+                  ),
+                ),
+                SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedBoard,
+                  decoration: InputDecoration(
+                    labelText: 'Education Board',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.school),
+                  ),
+                  items: boards.map((String board) {
+                    return DropdownMenuItem<String>(
+                      value: board,
+                      child: Text(board),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      setState(() => selectedBoard = newValue);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                // Validate phone number
+                if (phoneController.text.trim().length != 10 ||
+                    !RegExp(r'^[0-9]{10}$')
+                        .hasMatch(phoneController.text.trim())) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content:
+                            Text('Please enter a valid 10-digit phone number')),
+                  );
+                  return;
+                }
+
+                try {
+                  await _firestore
+                      .collection('teachers')
+                      .doc(widget.teacherId)
+                      .update({
+                    'name': nameController.text.trim(),
+                    'phoneNumber': phoneController.text.trim(),
+                    'subject': subjectController.text.trim(),
+                    'educationBoard': selectedBoard,
+                    'lastUpdated': FieldValue.serverTimestamp(),
+                  });
+
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Profile updated successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error updating profile: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Profile'),
+        actions: [
+          FutureBuilder<DocumentSnapshot>(
+            future:
+                _firestore.collection('teachers').doc(widget.teacherId).get(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return SizedBox();
+
+              return IconButton(
+                icon: Icon(Icons.settings),
+                onPressed: () {
+                  if (snapshot.data != null && snapshot.data!.exists) {
+                    _showEditTeacherDialog(
+                        snapshot.data!.data() as Map<String, dynamic>);
+                  }
+                },
+                tooltip: 'Edit Profile',
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
