@@ -15,10 +15,16 @@ class TeacherSignInScreen extends StatefulWidget {
 class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   bool _isLoading = false;
+  bool _showConfirmPassword = false;
   List<School> _schools = [];
   School? _selectedSchool;
+  String _selectedBoard = 'CBSE';
+  final List<String> _boards = ['CBSE', 'ICSE', 'State Board'];
 
   @override
   void initState() {
@@ -38,20 +44,41 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
     });
   }
 
-  Future<void> _signUp() async {
+  bool _validateFields() {
     if (_selectedSchool == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please select a school')),
       );
-      return;
+      return false;
     }
 
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please enter your name')),
       );
-      return;
+      return false;
     }
+
+    if (_phoneController.text.trim().length != 10 ||
+        !RegExp(r'^[0-9]{10}$').hasMatch(_phoneController.text.trim())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter a valid 10-digit phone number')),
+      );
+      return false;
+    }
+
+    if (_passwordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Passwords do not match')),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _signUp() async {
+    if (!_validateFields()) return;
 
     setState(() {
       _isLoading = true;
@@ -71,6 +98,8 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
           .set({
         'name': _nameController.text,
         'email': _emailController.text,
+        'phoneNumber': _phoneController.text,
+        'educationBoard': _selectedBoard,
         'schoolId': _selectedSchool!.affNo.toString(),
         'schoolName': _selectedSchool!.name,
         'createdAt': FieldValue.serverTimestamp(),
@@ -170,6 +199,38 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
             ),
             SizedBox(height: 20),
             TextField(
+              controller: _phoneController,
+              decoration: InputDecoration(
+                labelText: 'Phone Number (10 digits) *',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.phone),
+                hintText: 'Enter 10-digit mobile number',
+              ),
+              keyboardType: TextInputType.phone,
+              maxLength: 10,
+            ),
+            SizedBox(height: 20),
+            DropdownButtonFormField<String>(
+              value: _selectedBoard,
+              decoration: InputDecoration(
+                labelText: 'Education Board *',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.school),
+              ),
+              items: _boards.map((String board) {
+                return DropdownMenuItem<String>(
+                  value: board,
+                  child: Text(board),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                setState(() {
+                  _selectedBoard = newValue!;
+                });
+              },
+            ),
+            SizedBox(height: 20),
+            TextField(
               controller: _emailController,
               decoration: InputDecoration(
                 labelText: 'Email *',
@@ -185,8 +246,32 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
                 labelText: 'Password *',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.lock),
+                helperText: 'Password will be visible as you type',
               ),
-              obscureText: true,
+              obscureText: false,
+            ),
+            SizedBox(height: 20),
+            TextField(
+              controller: _confirmPasswordController,
+              decoration: InputDecoration(
+                labelText: 'Confirm Password *',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _showConfirmPassword
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _showConfirmPassword = !_showConfirmPassword;
+                    });
+                  },
+                ),
+              ),
+              obscureText: !_showConfirmPassword,
             ),
             SizedBox(height: 30),
             _isLoading
@@ -217,5 +302,15 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
   }
 }
