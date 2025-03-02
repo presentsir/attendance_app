@@ -19,6 +19,7 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
       TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _subjectController = TextEditingController();
   bool _isLoading = false;
   bool _showConfirmPassword = false;
   List<School> _schools = [];
@@ -67,6 +68,13 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
       return false;
     }
 
+    if (_subjectController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter your subject')),
+      );
+      return false;
+    }
+
     if (_passwordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Passwords do not match')),
@@ -102,6 +110,7 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
         'educationBoard': _selectedBoard,
         'schoolId': _selectedSchool!.affNo.toString(),
         'schoolName': _selectedSchool!.name,
+        'subject': _subjectController.text,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -210,6 +219,17 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
               maxLength: 10,
             ),
             SizedBox(height: 20),
+            TextField(
+              controller: _subjectController,
+              decoration: InputDecoration(
+                labelText: 'Subject *',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.book),
+                hintText: 'Enter your subject',
+              ),
+              textCapitalization: TextCapitalization.words,
+            ),
+            SizedBox(height: 20),
             DropdownButtonFormField<String>(
               value: _selectedBoard,
               decoration: InputDecoration(
@@ -311,6 +331,7 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
     _confirmPasswordController.dispose();
     _nameController.dispose();
     _phoneController.dispose();
+    _subjectController.dispose();
     super.dispose();
   }
 }
