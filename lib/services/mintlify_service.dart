@@ -85,6 +85,11 @@ class MintlifyService {
       );
 
       print('Chat response status: ${response.statusCode}');
+
+
+
+
+      
       print('Chat response body: ${response.body}');
 
       if (response.statusCode == 200) {
