@@ -118,7 +118,7 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
 
     return Card(
       elevation: isSelected ? 4 : 1,
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ExpansionTile(
         onExpansionChanged: (expanded) {
           setState(() {
@@ -131,26 +131,23 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
               child: Text(student.rollNumber),
               backgroundColor: Colors.blue[100],
             ),
-            SizedBox(width: 16),
+            SizedBox(width: 8),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: student.nameController,
-                    decoration: InputDecoration(
-                      labelText: 'Student Name',
-                      border: UnderlineInputBorder(),
-                    ),
-                  ),
-                ],
+              child: TextField(
+                controller: student.nameController,
+                decoration: InputDecoration(
+                  labelText: 'Student Name',
+                  border: UnderlineInputBorder(),
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 8),
+                ),
               ),
             ),
           ],
         ),
         children: [
-          Padding(
-            padding: EdgeInsets.all(16),
+          SingleChildScrollView(
+            padding: EdgeInsets.all(8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -165,6 +162,8 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
                     labelText: 'Mobile Number',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.phone),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 8),
                   ),
                   keyboardType: TextInputType.phone,
                 ),
@@ -175,50 +174,109 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
                     style:
                         TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: student.gender,
-                        decoration: InputDecoration(
-                          labelText: 'Gender',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: genderOptions.map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            student.gender = value!;
-                          });
-                        },
-                      ),
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: student.residentialArea,
-                        decoration: InputDecoration(
-                          labelText: 'Residential Area',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: residentialAreaOptions.map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            student.residentialArea = value!;
-                          });
-                        },
-                      ),
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    bool isNarrow = constraints.maxWidth < 400;
+                    return Column(
+                      children: [
+                        if (isNarrow) ...[
+                          DropdownButtonFormField<String>(
+                            value: student.gender,
+                            decoration: InputDecoration(
+                              labelText: 'Gender',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            items: genderOptions.map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                student.gender = value!;
+                              });
+                            },
+                          ),
+                          SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            value: student.residentialArea,
+                            decoration: InputDecoration(
+                              labelText: 'Residential Area',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            items: residentialAreaOptions.map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                student.residentialArea = value!;
+                              });
+                            },
+                          ),
+                        ] else
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: student.gender,
+                                  decoration: InputDecoration(
+                                    labelText: 'Gender',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                    contentPadding:
+                                        EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  items: genderOptions.map((String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      student.gender = value!;
+                                    });
+                                  },
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: student.residentialArea,
+                                  decoration: InputDecoration(
+                                    labelText: 'Residential Area',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                    contentPadding:
+                                        EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  items: residentialAreaOptions
+                                      .map((String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      student.residentialArea = value!;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    );
+                  },
                 ),
                 SizedBox(height: 16),
 
@@ -232,6 +290,8 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
                   decoration: InputDecoration(
                     labelText: 'Family Structure',
                     border: OutlineInputBorder(),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 8),
                   ),
                   items: familyStructureOptions.map((String value) {
                     return DropdownMenuItem<String>(
@@ -246,41 +306,91 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
                   },
                 ),
                 SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: student.parentEducation,
-                        decoration: InputDecoration(
-                          labelText: 'Parent Education',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: parentEducationOptions.map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            student.parentEducation = value!;
-                          });
-                        },
-                      ),
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: TextField(
-                        controller: student.familyIncomeController,
-                        decoration: InputDecoration(
-                          labelText: 'Family Income (INR/Year)',
-                          border: OutlineInputBorder(),
-                          prefixText: '₹ ',
-                        ),
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    bool isNarrow = constraints.maxWidth < 400;
+                    return Column(
+                      children: [
+                        if (isNarrow) ...[
+                          DropdownButtonFormField<String>(
+                            value: student.parentEducation,
+                            decoration: InputDecoration(
+                              labelText: 'Parent Education',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            items: parentEducationOptions.map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                student.parentEducation = value!;
+                              });
+                            },
+                          ),
+                          SizedBox(height: 8),
+                          TextField(
+                            controller: student.familyIncomeController,
+                            decoration: InputDecoration(
+                              labelText: 'Family Income (INR/Year)',
+                              border: OutlineInputBorder(),
+                              prefixText: '₹ ',
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ] else
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: student.parentEducation,
+                                  decoration: InputDecoration(
+                                    labelText: 'Parent Education',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                    contentPadding:
+                                        EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  items: parentEducationOptions
+                                      .map((String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      student.parentEducation = value!;
+                                    });
+                                  },
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: student.familyIncomeController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Family Income (INR/Year)',
+                                    border: OutlineInputBorder(),
+                                    prefixText: '₹ ',
+                                    isDense: true,
+                                    contentPadding:
+                                        EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    );
+                  },
                 ),
                 SizedBox(height: 16),
 
@@ -289,41 +399,91 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
                     style:
                         TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: student.academicTrend,
-                        decoration: InputDecoration(
-                          labelText: 'Academic Trend',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: academicTrendOptions.map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            student.academicTrend = value!;
-                          });
-                        },
-                      ),
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: TextField(
-                        controller: student.lastYearGradeController,
-                        decoration: InputDecoration(
-                          labelText: 'Last Year Grade (%)',
-                          border: OutlineInputBorder(),
-                          suffixText: '%',
-                        ),
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    bool isNarrow = constraints.maxWidth < 400;
+                    return Column(
+                      children: [
+                        if (isNarrow) ...[
+                          DropdownButtonFormField<String>(
+                            value: student.academicTrend,
+                            decoration: InputDecoration(
+                              labelText: 'Academic Trend',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            items: academicTrendOptions.map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                student.academicTrend = value!;
+                              });
+                            },
+                          ),
+                          SizedBox(height: 8),
+                          TextField(
+                            controller: student.lastYearGradeController,
+                            decoration: InputDecoration(
+                              labelText: 'Last Year Grade (%)',
+                              border: OutlineInputBorder(),
+                              suffixText: '%',
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ] else
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: student.academicTrend,
+                                  decoration: InputDecoration(
+                                    labelText: 'Academic Trend',
+                                    border: OutlineInputBorder(),
+                                    isDense: true,
+                                    contentPadding:
+                                        EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  items:
+                                      academicTrendOptions.map((String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      student.academicTrend = value!;
+                                    });
+                                  },
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: student.lastYearGradeController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Last Year Grade (%)',
+                                    border: OutlineInputBorder(),
+                                    suffixText: '%',
+                                    isDense: true,
+                                    contentPadding:
+                                        EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -378,7 +538,7 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
                                     ),
                                     keyboardType: TextInputType.number,
                                   ),
-                                  // 
+                                  //
                                 ),
                                 SizedBox(width: 16),
                                 Expanded(

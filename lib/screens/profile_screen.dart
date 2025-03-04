@@ -4,6 +4,7 @@ import '../models/school_model.dart';
 import 'bulk_student_upload.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
+import '../services/user_session.dart';
 
 class ProfileScreen extends StatefulWidget {
   final School school;
@@ -462,7 +463,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ElevatedButton.icon(
                   onPressed: () async {
                     try {
+                      // Clear user session
+                      await UserSession.clearSession();
+                      // Sign out from Firebase
                       await FirebaseAuth.instance.signOut();
+                      // Navigate to login screen and clear all previous routes
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(builder: (_) => LoginScreen()),
                         (route) => false,
