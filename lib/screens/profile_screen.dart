@@ -62,6 +62,134 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return sortedStudents;
   }
 
+  void _showClassOptionsMenu(BuildContext context, DocumentSnapshot classData) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
+      ),
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: Icon(Icons.upload_file),
+            title: Text('Bulk Upload Students'),
+            onTap: () {
+              Navigator.pop(context);
+              _navigateToBulkUpload(classData.id);
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.edit),
+            title: Text('Modify Class Details'),
+            onTap: () {
+              Navigator.pop(context);
+              _showModifyClassDialog(classData);
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.delete, color: Colors.red),
+            title: Text('Delete Class', style: TextStyle(color: Colors.red)),
+            onTap: () {
+              Navigator.pop(context);
+              _showDeleteConfirmation(classData);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showModifyClassDialog(DocumentSnapshot classData) async {
+    final studentsSnapshot = await _firestore
+        .collection('classes')
+        .doc(classData.id)
+        .collection('students')
+        .get();
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Modify ${classData['name']}'),
+        content: Container(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Text('Students:', style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 10),
+              ...studentsSnapshot.docs.map((student) => ListTile(
+                    title: Text(student['name']),
+                    subtitle: Text('Roll: ${student['rollNumber']}'),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => _deleteStudent(
+                          classData.id, student.id, student['name']),
+                    ),
+                  )),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteStudent(
+      String classId, String studentId, String studentName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Student'),
+        content: Text('Are you sure you want to delete $studentName?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _firestore
+            .collection('classes')
+            .doc(classId)
+            .collection('students')
+            .doc(studentId)
+            .delete();
+
+        // Remove from cache
+        _studentsCache[classId]?.removeWhere((doc) => doc.id == studentId);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Student deleted successfully')),
+        );
+
+        // Refresh the modify dialog
+        Navigator.pop(context);
+        _showModifyClassDialog(
+            await _firestore.collection('classes').doc(classId).get());
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting student: $e')),
+        );
+      }
+    }
+  }
+
   Widget _buildStudentsList(DocumentSnapshot classData) {
     return FutureBuilder<List<DocumentSnapshot>>(
       future: _getStudentsForClass(classData.id),
@@ -111,12 +239,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
 
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
               child: Text(
                 'Total Students: ${students.length}',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ),
             ListView.builder(
@@ -125,14 +257,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
               itemCount: students.length,
               itemBuilder: (context, index) {
                 var student = students[index];
-                return ListTile(
-                  title: Text(student['name']),
-                  subtitle: Text(
-                    'Roll: ${student['rollNumber']}, Mobile: ${student['mobileNumber']}',
+                return Card(
+                  margin: EdgeInsets.symmetric(vertical: 4),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      child: Text(student['rollNumber'].toString()),
+                      backgroundColor: Colors.blue[100],
+                    ),
+                    title: Text(
+                      student['name'],
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Mobile: ${student['mobileNumber']}'),
+                        if (student['gender'] != null)
+                          Text('Gender: ${student['gender']}'),
+                        if (student['familyStructure'] != null)
+                          Text('Family: ${student['familyStructure']}'),
+                      ],
+                    ),
+                    isThreeLine: true,
+                    trailing: hasDuplicates &&
+                            rollNumbers.contains(student['rollNumber'])
+                        ? Icon(Icons.warning, color: Colors.red)
+                        : null,
                   ),
-                  trailing: rollNumbers.contains(student['rollNumber'])
-                      ? Icon(Icons.warning, color: Colors.red)
-                      : null,
                 );
               },
             ),
@@ -142,41 +293,258 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildTeacherInfoCard() {
+    return FutureBuilder<DocumentSnapshot>(
+      future: _firestore.collection('teachers').doc(widget.teacherId).get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('Teacher information not found'),
+            ),
+          );
+        }
+
+        final teacherData = snapshot.data!.data() as Map<String, dynamic>;
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'School Information',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+                Divider(),
+                _buildInfoRow('School Name', widget.school.name),
+                _buildInfoRow('School Code', widget.school.affNo.toString()),
+                _buildInfoRow('School Board',
+                    teacherData['educationBoard'] ?? 'Not specified'),
+                SizedBox(height: 20),
+                Text(
+                  'Teacher Information',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+                Divider(),
+                _buildInfoRow('Name', teacherData['name'] ?? 'Not specified'),
+                _buildInfoRow('Email', teacherData['email'] ?? 'Not specified'),
+                _buildInfoRow('Contact No.',
+                    teacherData['phoneNumber'] ?? 'Not specified'),
+                _buildInfoRow(
+                    'Subject', teacherData['subject'] ?? 'Not specified'),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(fontSize: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditTeacherDialog(Map<String, dynamic> teacherData) {
+    final TextEditingController nameController =
+        TextEditingController(text: teacherData['name']);
+    final TextEditingController phoneController =
+        TextEditingController(text: teacherData['phoneNumber']);
+    final TextEditingController subjectController =
+        TextEditingController(text: teacherData['subject']);
+    String selectedBoard = teacherData['educationBoard'] ?? 'CBSE';
+    final List<String> boards = ['CBSE', 'ICSE', 'State Board'];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Edit Profile'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: 'Name',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                ),
+                SizedBox(height: 16),
+                TextField(
+                  controller: phoneController,
+                  decoration: InputDecoration(
+                    labelText: 'Phone Number',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.phone),
+                    hintText: '10-digit mobile number',
+                  ),
+                  keyboardType: TextInputType.phone,
+                  maxLength: 10,
+                ),
+                SizedBox(height: 16),
+                TextField(
+                  controller: subjectController,
+                  decoration: InputDecoration(
+                    labelText: 'Subject',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.book),
+                  ),
+                ),
+                SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedBoard,
+                  decoration: InputDecoration(
+                    labelText: 'Education Board',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.school),
+                  ),
+                  items: boards.map((String board) {
+                    return DropdownMenuItem<String>(
+                      value: board,
+                      child: Text(board),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      setState(() => selectedBoard = newValue);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                // Validate phone number
+                if (phoneController.text.trim().length != 10 ||
+                    !RegExp(r'^[0-9]{10}$')
+                        .hasMatch(phoneController.text.trim())) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content:
+                            Text('Please enter a valid 10-digit phone number')),
+                  );
+                  return;
+                }
+
+                try {
+                  await _firestore
+                      .collection('teachers')
+                      .doc(widget.teacherId)
+                      .update({
+                    'name': nameController.text.trim(),
+                    'phoneNumber': phoneController.text.trim(),
+                    'subject': subjectController.text.trim(),
+                    'educationBoard': selectedBoard,
+                    'lastUpdated': FieldValue.serverTimestamp(),
+                  });
+
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Profile updated successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error updating profile: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Profile'),
+        actions: [
+          FutureBuilder<DocumentSnapshot>(
+            future:
+                _firestore.collection('teachers').doc(widget.teacherId).get(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return SizedBox();
+
+              return IconButton(
+                icon: Icon(Icons.settings),
+                onPressed: () {
+                  if (snapshot.data != null && snapshot.data!.exists) {
+                    _showEditTeacherDialog(
+                        snapshot.data!.data() as Map<String, dynamic>);
+                  }
+                },
+                tooltip: 'Edit Profile',
+              );
+            },
+          ),
+        ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // School Information Card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'School Name: ${widget.school.name}',
-                      style: TextStyle(fontSize: 18),
-                    ),
-                    SizedBox(height: 10),
-                    Text(
-                      'School Code: ${widget.school.affNo}',
-                      style: TextStyle(fontSize: 18),
-                    ),
-                    SizedBox(height: 10),
-                    Text(
-                      'Email: ${widget.userEmail}',
-                      style: TextStyle(fontSize: 18),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            _buildTeacherInfoCard(),
             SizedBox(height: 20),
 
             // Add Class Section
@@ -212,169 +580,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             SizedBox(height: 20),
 
-            // Bulk Upload Button
-            ElevatedButton.icon(
-              onPressed: _selectedClass == null
-                  ? null
-                  : () => _navigateToBulkUpload(_selectedClass!),
-              icon: Icon(Icons.upload_file),
-              label: Text('Bulk Upload Students'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: Size(double.infinity, 48),
-              ),
-            ),
-            SizedBox(height: 20),
-
             // Classes List
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: _classesQuery.snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    // Check specifically for the index error
-                    if (snapshot.error
-                            .toString()
-                            .contains('failed-precondition') ||
-                        snapshot.error
-                            .toString()
-                            .contains('requires an index')) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.build, size: 64, color: Colors.orange),
-                            SizedBox(height: 16),
-                            Text(
-                              'Setting up database...',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 32),
-                              child: Text(
-                                'Please wait while we complete the initial setup. This may take a few minutes.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 24),
-                            CircularProgressIndicator(
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.orange),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.error_outline,
-                              size: 64, color: Colors.red),
-                          SizedBox(height: 16),
-                          Text(
-                            'Error loading classes',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            snapshot.error.toString(),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
+            StreamBuilder<QuerySnapshot>(
+              stream: _classesQuery.snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
 
-                  if (!snapshot.hasData) {
-                    return Center(child: CircularProgressIndicator());
-                  }
+                if (!snapshot.hasData) {
+                  return Center(child: CircularProgressIndicator());
+                }
 
-                  if (snapshot.data!.docs.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.class_outlined,
-                              size: 64, color: Colors.grey),
-                          SizedBox(height: 16),
-                          Text(
-                            'No classes added yet',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Add your first class using the field above',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[500],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    itemCount: snapshot.data!.docs.length,
-                    itemBuilder: (context, index) {
-                      var classData = snapshot.data!.docs[index];
-                      return Card(
-                        margin: EdgeInsets.only(bottom: 8),
-                        child: ExpansionTile(
-                          title: Text(
-                            classData['name'],
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                            'Created: ${(classData['createdAt'] as Timestamp).toDate().toString().split('.')[0]}',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: Icon(Icons.delete, color: Colors.red),
-                                onPressed: () =>
-                                    _showDeleteConfirmation(classData),
-                              ),
-                              Icon(
-                                _selectedClass == classData.id
-                                    ? Icons.expand_less
-                                    : Icons.expand_more,
-                              ),
-                            ],
-                          ),
-                          onExpansionChanged: (expanded) {
-                            if (expanded) {
-                              setState(() {
-                                _selectedClass = classData.id;
-                              });
-                            }
-                          },
-                          children: [_buildStudentsList(classData)],
-                        ),
-                      );
-                    },
+                if (snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No classes added yet',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
                   );
-                },
-              ),
+                }
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  itemCount: snapshot.data!.docs.length,
+                  itemBuilder: (context, index) {
+                    var classData = snapshot.data!.docs[index];
+                    return Card(
+                      margin: EdgeInsets.only(bottom: 8),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            title: Text(
+                              classData['name'],
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Text(
+                              'Created: ${(classData['createdAt'] as Timestamp).toDate().toString().split('.')[0]}',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.more_vert),
+                                  onPressed: () =>
+                                      _showClassOptionsMenu(context, classData),
+                                ),
+                                IconButton(
+                                  icon: Icon(
+                                    _selectedClass == classData.id
+                                        ? Icons.expand_less
+                                        : Icons.expand_more,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _selectedClass =
+                                          _selectedClass == classData.id
+                                              ? null
+                                              : classData.id;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_selectedClass == classData.id)
+                            Padding(
+                              padding: EdgeInsets.all(16),
+                              child: _buildStudentsList(classData),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ],
         ),
