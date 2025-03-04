@@ -24,14 +24,57 @@ class StudentDashboard extends StatefulWidget {
 }
 
 class _StudentDashboardState extends State<StudentDashboard> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   int _selectedIndex = 0;
   double _attendancePercentage = 0.0;
   bool _isLoading = true;
+  Map<String, dynamic>? _studentData;
+  Map<String, dynamic>? _classData;
+  Map<String, dynamic>? _teacherData;
 
   @override
   void initState() {
     super.initState();
-    _calculateAttendance();
+    _loadStudentData();
+  }
+
+  Future<void> _loadStudentData() async {
+    try {
+      // Get student data
+      final studentDoc = await _firestore
+          .collection('classes')
+          .doc(widget.classId)
+          .collection('students')
+          .where('rollNumber', isEqualTo: widget.rollNo)
+          .get();
+
+      if (studentDoc.docs.isNotEmpty) {
+        _studentData = studentDoc.docs.first.data();
+      }
+
+      // Get class data
+      final classDoc =
+          await _firestore.collection('classes').doc(widget.classId).get();
+      _classData = classDoc.data();
+
+      // Get teacher data
+      if (_classData != null && _classData!['teacherId'] != null) {
+        final teacherDoc = await _firestore
+            .collection('teachers')
+            .doc(_classData!['teacherId'])
+            .get();
+        _teacherData = teacherDoc.data();
+      }
+
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading student data: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _calculateAttendance() async {
@@ -51,9 +94,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
       if (!mounted) return;
 
       setState(() {
-        _attendancePercentage = totalDays > 0
-            ? (presentDays / totalDays) * 100
-            : 0.0;
+        _attendancePercentage =
+            totalDays > 0 ? (presentDays / totalDays) * 100 : 0.0;
         _isLoading = false;
       });
 
@@ -72,7 +114,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error calculating attendance. Please try again later.'),
+          content:
+              Text('Error calculating attendance. Please try again later.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -126,207 +169,93 @@ class _StudentDashboardState extends State<StudentDashboard> {
     }
   }
 
-  Widget _buildRecordsTab() {
-    print('Building records tab with parameters:');
-    print('Class ID: ${widget.classId}');
-    print('Roll Number: ${widget.rollNo}');
+  Widget _buildProfileCard() {
+    if (_isLoading) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('attendance_records')
-          .where('classId', isEqualTo: widget.classId)
-          .where('rollNumber', isEqualTo: widget.rollNo)
-          .orderBy('date')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          print('Error in records query: ${snapshot.error}');
-          return Center(
-            child: Text(
-              'Error loading records. Please try again later.',
-              style: TextStyle(color: Colors.red),
-            ),
-          );
-        }
-
-        if (!snapshot.hasData) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 8),
-                Text('Loading records...'),
-              ],
-            ),
-          );
-        }
-
-        final records = snapshot.data!.docs;
-
-        if (records.isEmpty) {
-          return Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.info_outline, color: Colors.blue, size: 48),
-                  SizedBox(height: 8),
-                  Text(
-                    'No Records Found',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    'Your attendance records will appear here',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        return Column(
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Card(
-              margin: EdgeInsets.all(16),
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Text(
-                      'Attendance Overview',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        Column(
-                          children: [
-                            Text(
-                              '${_attendancePercentage.toStringAsFixed(1)}%',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: _attendancePercentage < 60
-                                    ? Colors.red
-                                    : Colors.green,
-                              ),
-                            ),
-                            Text('Total Attendance'),
-                          ],
-                        ),
-                        Column(
-                          children: [
-                            Text(
-                              '${records.length}',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text('Total Days'),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+            Text(
+              'Welcome, ${_studentData?['name'] ?? 'Student'}',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
               ),
             ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: records.length,
-                itemBuilder: (context, index) {
-                  final record = records[index];
-                  final date = DateFormat('dd MMM yyyy')
-                      .format((record['date'] as Timestamp).toDate());
-                  final status = record['status'];
-
-                  return Card(
-                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: ListTile(
-                      leading: Icon(
-                        status == 'present'
-                            ? Icons.check_circle
-                            : Icons.cancel,
-                        color: status == 'present'
-                            ? Colors.green
-                            : Colors.red,
-                      ),
-                      title: Text(date),
-                      subtitle: Text(
-                        status.toString().toUpperCase(),
-                        style: TextStyle(
-                          color: status == 'present'
-                              ? Colors.green
-                              : Colors.red,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+            Divider(),
+            _buildInfoRow(
+                'Roll No.', _studentData?['rollNumber'] ?? 'Not available'),
+            _buildInfoRow('Contact Number',
+                _studentData?['mobileNumber'] ?? 'Not available'),
+            _buildInfoRow('Class', _classData?['name'] ?? 'Not available'),
+            _buildInfoRow(
+                'Class Teacher', _teacherData?['name'] ?? 'Not available'),
+            _buildInfoRow('Teacher Contact',
+                _teacherData?['phoneNumber'] ?? 'Not available'),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _buildProfileTab() {
+  Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: EdgeInsets.all(16),
-      child: Column(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ListTile(
-                    leading: CircleAvatar(
-                      child: Text(
-                        widget.studentName[0].toUpperCase(),
-                        style: TextStyle(fontSize: 24),
-                      ),
-                    ),
-                    title: Text(
-                      widget.studentName,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    subtitle: Text('Roll No: ${widget.rollNo}'),
-                  ),
-                  Divider(),
-                  ListTile(
-                    leading: Icon(Icons.school),
-                    title: Text(widget.school.name),
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.location_on),
-                    title: Text(widget.school.address),
-                    subtitle: Text('${widget.school.district}, ${widget.school.state}'),
-                  ),
-                ],
+          SizedBox(
+            width: 140,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
               ),
             ),
           ),
-          SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: _handleLogout,
-            icon: Icon(Icons.logout),
-            label: Text('Logout'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              minimumSize: Size(double.infinity, 50),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(fontSize: 16),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAttendanceButton() {
+    return ElevatedButton.icon(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AttendanceRecordsScreen(
+              classId: widget.classId,
+              rollNo: widget.rollNo,
+              studentName: _studentData?['name'] ?? 'Student',
+            ),
+          ),
+        );
+      },
+      icon: Icon(Icons.calendar_today),
+      label: Text('View Attendance Records'),
+      style: ElevatedButton.styleFrom(
+        minimumSize: Size(double.infinity, 50),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
       ),
     );
   }
@@ -335,38 +264,182 @@ class _StudentDashboardState extends State<StudentDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Student Dashboard'),
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.logout),
-            onPressed: _handleLogout,
-            tooltip: 'Logout',
-          ),
-        ],
+        title: Text('Student Profile'),
+        centerTitle: true,
       ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : IndexedStack(
-              index: _selectedIndex,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildProfileCard(),
+            SizedBox(height: 20),
+            _buildAttendanceButton(),
+            SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _handleLogout,
+              icon: Icon(Icons.logout),
+              label: Text('Logout'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                minimumSize: Size(double.infinity, 50),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AttendanceRecordsScreen extends StatelessWidget {
+  final String classId;
+  final String rollNo;
+  final String studentName;
+
+  AttendanceRecordsScreen({
+    required this.classId,
+    required this.rollNo,
+    required this.studentName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Attendance Records'),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('attendance_records')
+            .where('classId', isEqualTo: classId)
+            .where('rollNumber', isEqualTo: rollNo)
+            .orderBy('date')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Error loading records. Please try again later.',
+                style: TextStyle(color: Colors.red),
+              ),
+            );
+          }
+
+          if (!snapshot.hasData) {
+            return Center(child: CircularProgressIndicator());
+          }
+
+          final records = snapshot.data!.docs;
+
+          if (records.isEmpty) {
+            return Center(
+              child: Text('No attendance records found'),
+            );
+          }
+
+          // Calculate attendance statistics
+          int totalDays = records.length;
+          int presentDays =
+              records.where((doc) => doc['status'] == 'present').length;
+          double attendancePercentage =
+              totalDays > 0 ? (presentDays / totalDays) * 100 : 0.0;
+
+          return SingleChildScrollView(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildRecordsTab(),
-                _buildProfileTab(),
+                Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Attendance Overview',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            Column(
+                              children: [
+                                Text(
+                                  '${attendancePercentage.toStringAsFixed(1)}%',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: attendancePercentage < 60
+                                        ? Colors.red
+                                        : Colors.green,
+                                  ),
+                                ),
+                                Text('Total Attendance'),
+                              ],
+                            ),
+                            Column(
+                              children: [
+                                Text(
+                                  '$totalDays',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text('Total Days'),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(height: 20),
+                Text(
+                  'Attendance History',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                SizedBox(height: 16),
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  itemCount: records.length,
+                  itemBuilder: (context, index) {
+                    final record = records[index];
+                    final date = DateFormat('dd MMM yyyy')
+                        .format((record['date'] as Timestamp).toDate());
+                    final status = record['status'];
+
+                    return Card(
+                      margin: EdgeInsets.symmetric(vertical: 4),
+                      child: ListTile(
+                        leading: Icon(
+                          status == 'present'
+                              ? Icons.check_circle
+                              : Icons.cancel,
+                          color:
+                              status == 'present' ? Colors.green : Colors.red,
+                        ),
+                        title: Text(date),
+                        subtitle: Text(
+                          status.toString().toUpperCase(),
+                          style: TextStyle(
+                            color:
+                                status == 'present' ? Colors.green : Colors.red,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
-        items: [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: 'Records',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+          );
+        },
       ),
     );
   }
