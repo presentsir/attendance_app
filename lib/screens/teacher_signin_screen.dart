@@ -22,6 +22,7 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
   final TextEditingController _subjectController = TextEditingController();
   bool _isLoading = false;
   bool _showConfirmPassword = false;
+  bool _showPassword = false;
   List<School> _schools = [];
   School? _selectedSchool;
   String _selectedBoard = 'CBSE';
@@ -266,9 +267,19 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
                 labelText: 'Password *',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.lock),
-                helperText: 'Password will be visible as you type',
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _showPassword ? Icons.visibility : Icons.visibility_off,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _showPassword = !_showPassword;
+                    });
+                  },
+                ),
               ),
-              obscureText: false,
+              obscureText: !_showPassword,
             ),
             SizedBox(height: 20),
             TextField(
