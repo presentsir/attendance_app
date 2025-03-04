@@ -10,12 +10,12 @@ import '../services/user_session.dart';
 class TeacherDashboard extends StatefulWidget {
   final School school; // School data passed from the login screen
   final String teacherName; // Teacher name passed from the login screen
-  final String teacherId;  // Add teacherId
+  final String teacherId; // Add teacherId
 
   TeacherDashboard({
     required this.school,
     required this.teacherName,
-    required this.teacherId,  // Add teacherId parameter
+    required this.teacherId, // Add teacherId parameter
   });
 
   @override
@@ -23,7 +23,8 @@ class TeacherDashboard extends StatefulWidget {
 }
 
 class _TeacherDashboardState extends State<TeacherDashboard> {
-  int _selectedIndex = 0; // Track the selected index for the bottom navigation bar
+  int _selectedIndex =
+      0; // Track the selected index for the bottom navigation bar
 
   // Define the screens corresponding to the bottom navigation bar items
   late final List<Widget> _screens;
@@ -33,14 +34,14 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     super.initState();
     // Initialize the screens with the required data
     _screens = [
-      AttendanceScreen(teacherId: widget.teacherId),  // Pass teacherId
-      RecordsScreen(teacherId: widget.teacherId),  // Pass teacherId
+      AttendanceScreen(teacherId: widget.teacherId), // Pass teacherId
+      RecordsScreen(teacherId: widget.teacherId), // Pass teacherId
       ProfileScreen(
         school: widget.school,
         userEmail: widget.teacherName,
         numberOfClasses: 0,
         studentsPerClass: {},
-        teacherId: widget.teacherId,  // Add teacherId here
+        teacherId: widget.teacherId, // Add teacherId here
       ),
     ];
   }
@@ -54,7 +55,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   Future<void> _handleLogout() async {
     await UserSession.clearSession();
     if (!mounted) return;
-    
+
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => LoginScreen()),
@@ -66,12 +67,24 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Teacher Dashboard'),
-        automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            icon: Icon(Icons.logout),
-            onPressed: _handleLogout,
+            icon: Icon(Icons.settings),
+            onPressed: () {
+              // Navigate to profile screen
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProfileScreen(
+                    school: widget.school,
+                    userEmail: widget.teacherName,
+                    numberOfClasses: 0,
+                    studentsPerClass: {},
+                    teacherId: widget.teacherId,
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),

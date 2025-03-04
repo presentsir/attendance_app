@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/school_model.dart';
 import 'bulk_student_upload.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'login_screen.dart';
+import '../services/user_session.dart';
 
 class ProfileScreen extends StatefulWidget {
   final School school;
@@ -401,7 +404,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: Text('Edit Profile'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -454,6 +456,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       setState(() => selectedBoard = newValue);
                     }
                   },
+                ),
+                SizedBox(height: 24),
+                Divider(),
+                SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    try {
+                      // Clear user session
+                      await UserSession.clearSession();
+                      // Sign out from Firebase
+                      await FirebaseAuth.instance.signOut();
+                      // Navigate to login screen and clear all previous routes
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => LoginScreen()),
+                        (route) => false,
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error signing out: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  icon: Icon(Icons.logout, color: Colors.white),
+                  label: Text('Logout', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: Size(double.infinity, 48),
+                  ),
                 ),
               ],
             ),
