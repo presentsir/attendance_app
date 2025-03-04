@@ -678,6 +678,20 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
           return;
         }
 
+        // Validate phone number format (10 digits)
+        String phoneNumber = student.mobileController.text.trim();
+        if (!RegExp(r'^\d{10}$').hasMatch(phoneNumber)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(
+                    'Invalid phone number for roll number ${student.rollNumber}. Please enter 10 digits.')),
+          );
+          return;
+        }
+
+        // Add country code
+        phoneNumber = '+91$phoneNumber';
+
         // Validate percentage
         double? percentage =
             double.tryParse(student.lastYearGradeController.text);
@@ -721,10 +735,13 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
               .doc();
         }
 
+        // Format phone number with country code
+        String phoneNumber = '+91${student.mobileController.text.trim()}';
+
         batch.set(docRef, {
           'rollNumber': student.rollNumber,
           'name': student.nameController.text,
-          'mobileNumber': student.mobileController.text,
+          'mobileNumber': phoneNumber,
           'gender': student.gender,
           'familyStructure': student.familyStructure,
           'parentEducation': student.parentEducation,

@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../models/school_model.dart';
-import 'teacher_dashboard.dart';
+import 'student_dashboard.dart';
 
-class TeacherSignInScreen extends StatefulWidget {
+class StudentSignInScreen extends StatefulWidget {
   @override
-  _TeacherSignInScreenState createState() => _TeacherSignInScreenState();
+  _StudentSignInScreenState createState() => _StudentSignInScreenState();
 }
 
-class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
+class _StudentSignInScreenState extends State<StudentSignInScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _rollNoController = TextEditingController();
+  final _phoneController = TextEditingController();
   bool _isLoading = false;
   List<Map<String, dynamic>> _schools = [];
   String? _selectedSchool;
+  List<Map<String, dynamic>> _classes = [];
+  String? _selectedClass;
 
   @override
   void initState() {
@@ -60,7 +61,44 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
     }
   }
 
-  Future<void> _signIn() async {
+  Future<void> _loadClasses() async {
+    if (_selectedSchool == null) return;
+
+    setState(() {
+      _isLoading = true;
+      _classes = [];
+      _selectedClass = null;
+    });
+
+    try {
+      final classesQuery = await FirebaseFirestore.instance
+          .collection('classes')
+          .where('schoolId', isEqualTo: _selectedSchool)
+          .get();
+
+      setState(() {
+        _classes = classesQuery.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'name': data['name'] ?? 'Unknown Class',
+          };
+        }).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading classes: $e');
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading classes: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _verifyStudent() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -76,37 +114,34 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
         throw 'School not found';
       }
 
-      // Sign in with Firebase Auth
-      final userCredential =
-          await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
+      final school = School.fromFirestore(schoolQuery.docs.first);
 
-      // Get teacher data
-      final teacherQuery = await FirebaseFirestore.instance
-          .collection('teachers')
-          .where('email', isEqualTo: _emailController.text.trim())
-          .where('schoolId', isEqualTo: _selectedSchool)
+      // Then, find the student in the selected class
+      final studentQuery = await FirebaseFirestore.instance
+          .collection('classes')
+          .doc(_selectedClass)
+          .collection('students')
+          .where('rollNumber', isEqualTo: _rollNoController.text.trim())
+          .where('mobileNumber',
+              isEqualTo: '+91${_phoneController.text.trim()}')
           .get();
 
-      if (teacherQuery.docs.isEmpty) {
-        throw 'Teacher not found in this school';
+      if (studentQuery.docs.isEmpty) {
+        throw 'Student not found or invalid details';
       }
 
-      final teacherData = teacherQuery.docs.first.data();
-      final school = School.fromFirestore(schoolQuery.docs.first);
+      final studentData = studentQuery.docs.first.data();
 
       if (!mounted) return;
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => TeacherDashboard(
+          builder: (context) => StudentDashboard(
             school: school,
-            teacherId: teacherQuery.docs.first.id,
-            teacherName: teacherData['name'],
-            classId: teacherData['classId'],
+            classId: _selectedClass!,
+            rollNo: _rollNoController.text.trim(),
+            studentName: studentData['name'] ?? 'Student',
           ),
         ),
       );
@@ -133,7 +168,7 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Teacher Login'),
+        title: Text('Student Login'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -147,7 +182,7 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Teacher Login',
+                    'Student Login',
                     style: TextStyle(
                       fontSize: isSmallScreen ? 24 : 32,
                       fontWeight: FontWeight.bold,
@@ -179,7 +214,10 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
                     onChanged: (value) {
                       setState(() {
                         _selectedSchool = value;
+                        _selectedClass = null;
+                        _classes = [];
                       });
+                      _loadClasses();
                     },
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -189,52 +227,84 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
                     },
                   ),
                   SizedBox(height: isSmallScreen ? 16 : 24),
+                  if (_selectedSchool != null)
+                    DropdownButtonFormField<String>(
+                      value: _selectedClass,
+                      decoration: InputDecoration(
+                        labelText: 'Select Class',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: isSmallScreen ? 12 : 16,
+                          vertical: isSmallScreen ? 12 : 16,
+                        ),
+                      ),
+                      items: _classes.map((classData) {
+                        return DropdownMenuItem<String>(
+                          value: classData['id'],
+                          child: Text(
+                            classData['name'],
+                            style: TextStyle(
+                              fontSize: isSmallScreen ? 14 : 16,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedClass = value;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please select a class';
+                        }
+                        return null;
+                      },
+                    ),
+                  SizedBox(height: isSmallScreen ? 16 : 24),
                   TextFormField(
-                    controller: _emailController,
+                    controller: _rollNoController,
                     decoration: InputDecoration(
-                      labelText: 'Email',
+                      labelText: 'Roll Number',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: isSmallScreen ? 12 : 16,
                         vertical: isSmallScreen ? 12 : 16,
                       ),
                     ),
-                    keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      if (!value.contains('@')) {
-                        return 'Please enter a valid email';
+                        return 'Please enter roll number';
                       }
                       return null;
                     },
                   ),
                   SizedBox(height: isSmallScreen ? 16 : 24),
                   TextFormField(
-                    controller: _passwordController,
+                    controller: _phoneController,
                     decoration: InputDecoration(
-                      labelText: 'Password',
+                      labelText: 'Contact Number',
                       border: OutlineInputBorder(),
+                      prefixText: '+91 ',
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: isSmallScreen ? 12 : 16,
                         vertical: isSmallScreen ? 12 : 16,
                       ),
                     ),
-                    obscureText: true,
+                    keyboardType: TextInputType.phone,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
+                        return 'Please enter contact number';
                       }
-                      if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
+                      if (!RegExp(r'^\d{10}$').hasMatch(value)) {
+                        return 'Please enter a valid 10-digit number';
                       }
                       return null;
                     },
                   ),
                   SizedBox(height: isSmallScreen ? 32 : 48),
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _signIn,
+                    onPressed: _isLoading ? null : _verifyStudent,
                     child: _isLoading
                         ? CircularProgressIndicator(color: Colors.white)
                         : Text(
@@ -260,8 +330,8 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
+    _rollNoController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 }

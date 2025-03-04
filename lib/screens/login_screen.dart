@@ -7,7 +7,9 @@ import '../models/school_model.dart';
 import 'teacher_dashboard.dart';
 import 'student_dashboard.dart';
 import 'teacher_signin_screen.dart'; // Import the teacher sign-in screen
+import 'student_signin_screen.dart';
 import '../services/user_session.dart';
+import 'parent_login_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -64,7 +66,6 @@ class _LoginScreenState extends State<LoginScreen> {
       String userType, Map<String, dynamic> userData) {
     if (!mounted) return;
 
-    // Convert the stored school JSON back to a School object
     final school = School.fromJson(userData['school'] as Map<String, dynamic>);
 
     if (userType == 'teacher') {
@@ -73,8 +74,9 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(
           builder: (context) => TeacherDashboard(
             teacherId: userData['teacherId'],
-            school: school, // Use the reconstructed school object
+            school: school,
             teacherName: userData['teacherName'] ?? 'Teacher',
+            classId: userData['classId'] ?? '', // Add classId
           ),
         ),
       );
@@ -83,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => StudentDashboard(
-            school: school, // Use the reconstructed school object
+            school: school,
             rollNo: userData['rollNo'],
             studentName: userData['studentName'],
             classId: userData['classId'],
@@ -248,6 +250,7 @@ class _LoginScreenState extends State<LoginScreen> {
               teacherName:
                   teacherData['name'] ?? _emailController.text.split('@')[0],
               teacherId: userCredential.user!.uid,
+              classId: teacherData['classId'] ?? '', // Add classId
             ),
           ),
         );
@@ -443,140 +446,85 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Login'),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DropdownSearch<School>(
-              items: _schools,
-              itemAsString: (School school) =>
-                  '${school.name} (${school.affNo})',
-              onChanged: (School? school) {
-                setState(() {
-                  _selectedSchool = school;
-                  _selectedClassId = null;
-                  _selectedClassName = null;
-                  if (school != null) {
-                    _schoolCodeController.text = school.affNo.toString();
-                  }
-                });
-              },
-              dropdownDecoratorProps: DropDownDecoratorProps(
-                dropdownSearchDecoration: InputDecoration(
-                  labelText: 'Select a school',
-                  hintText: 'Search by school name or code',
-                  border: OutlineInputBorder(),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(height: 40),
+              Text(
+                'Welcome to Attendance App',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 40),
+              _buildLoginCard(
+                'Teacher Login',
+                Icons.school,
+                Colors.blue,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => TeacherSignInScreen()),
                 ),
               ),
-              popupProps: PopupProps.menu(
-                showSearchBox: true,
-                searchFieldProps: TextFieldProps(
-                  decoration: InputDecoration(
-                    hintText: 'Search by school name or code',
-                    border: OutlineInputBorder(),
-                  ),
+              SizedBox(height: 16),
+              _buildLoginCard(
+                'Student Login',
+                Icons.person,
+                Colors.green,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => StudentSignInScreen()),
                 ),
               ),
-            ),
-            SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: RadioListTile(
-                    title: Text('Student'),
-                    value: 'student',
-                    groupValue: _role,
-                    onChanged: (value) => setState(() {
-                      _role = value.toString();
-                      _selectedClassId = null;
-                      _selectedClassName = null;
-                    }),
-                  ),
+              SizedBox(height: 16),
+              _buildLoginCard(
+                'Parent Login',
+                Icons.family_restroom,
+                Colors.orange,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ParentLoginScreen()),
                 ),
-                Expanded(
-                  child: RadioListTile(
-                    title: Text('Teacher'),
-                    value: 'teacher',
-                    groupValue: _role,
-                    onChanged: (value) => setState(() {
-                      _role = value.toString();
-                      _selectedClassId = null;
-                      _selectedClassName = null;
-                    }),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            if (_role == 'student')
-              _buildStudentLoginFields()
-            else if (_role == 'teacher') ...[
-              TextField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              SizedBox(height: 20),
-              TextField(
-                controller: _passwordController,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: Icon(Icons.lock),
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
               ),
             ],
-            SizedBox(height: 30),
-            _isLoading
-                ? Center(child: CircularProgressIndicator())
-                : ElevatedButton(
-                    onPressed: _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: Size(double.infinity, 50),
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: Text(
-                      'Login',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  ),
-            SizedBox(height: 20),
-            if (_role == 'teacher')
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => TeacherSignInScreen(),
-                    ),
-                  );
-                },
-                child: Text('Don\'t have an account? Sign Up'),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginCard(
+      String title, IconData icon, Color color, VoidCallback onPressed) {
+    return Card(
+      elevation: 5,
+      child: InkWell(
+        onTap: onPressed,
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 48,
+                color: color,
               ),
-            if (_role == 'student')
-              Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Text(
-                  'Note: Students can login with roll number and mobile number provided by their teacher.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 12,
-                  ),
+              SizedBox(width: 16),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
