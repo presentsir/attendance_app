@@ -5,6 +5,8 @@ import 'package:fl_chart/fl_chart.dart';
 import '../services/ai_service.dart';
 import 'package:flutter/services.dart';
 import 'edit_attendance_screen.dart';
+import 'ai_chat_screen.dart';
+import '../services/mintlify_service.dart';
 
 class RecordsScreen extends StatefulWidget {
   final String? teacherId;
@@ -123,11 +125,28 @@ class _RecordsScreenState extends State<RecordsScreen> {
       appBar: AppBar(
         title: Text('Attendance Records'),
         actions: [
-          if (widget.teacherId != null)
+          if (widget.teacherId != null) ...[
+            IconButton(
+              icon: Icon(Icons.chat),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AIChatScreen(
+                      classId: _selectedClass ?? '',
+                      attendanceStats: _attendanceStats,
+                      startDate: _startDate,
+                      endDate: _endDate,
+                    ),
+                  ),
+                );
+              },
+            ),
             IconButton(
               icon: Icon(Icons.filter_list),
               onPressed: _showFilterDialog,
             ),
+          ],
         ],
       ),
       body: _isLoading
@@ -396,31 +415,49 @@ class _RecordsScreenState extends State<RecordsScreen> {
   Widget _buildAIInsights() {
     if (_selectedClass == null || _attendanceStats['total'] == 0) return SizedBox();
 
-    return FutureBuilder<String>(
-      future: AIService.getClassPerformanceInsights(
-        classStats: {
-          'totalStudents': _attendanceStats['total'],
-          'averageAttendance': (_attendanceStats['present'] / _attendanceStats['total'] * 100).toStringAsFixed(1),
-          'lowestAttendance': '60', // You can calculate this from actual data
-          'highestAttendance': '100', // You can calculate this from actual data
-        },
-        className: _selectedClass ?? 'Unknown',
-      ),
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _getDetailedInsights(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Card(
             child: Padding(
               padding: EdgeInsets.all(16),
-              child: Column(
+              child: Row(
                 children: [
-                  CircularProgressIndicator(strokeWidth: 2),
-                  SizedBox(height: 8),
-                  Text('Generating AI insights...'),
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 16),
+                  Text('Analyzing attendance patterns...'),
                 ],
               ),
             ),
           );
         }
+
+        if (snapshot.hasError) {
+          return Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red),
+                  SizedBox(height: 8),
+                  Text('Unable to generate insights'),
+                  ElevatedButton(
+                    onPressed: () => setState(() {}),
+                    child: Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final insights = snapshot.data;
+        if (insights == null) return SizedBox();
 
         return Card(
           child: Padding(
@@ -430,10 +467,10 @@ class _RecordsScreenState extends State<RecordsScreen> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.psychology, color: Colors.purple),
+                    Icon(Icons.insights, color: Colors.blue),
                     SizedBox(width: 8),
                     Text(
-                      'AI Insights',
+                      'Attendance Insights',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -441,16 +478,130 @@ class _RecordsScreenState extends State<RecordsScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 8),
-                Text(
-                  snapshot.data ?? 'No insights available',
-                  style: TextStyle(fontSize: 14),
+                SizedBox(height: 16),
+                _buildInsightTile(
+                  icon: Icons.trending_up,
+                  title: 'Trend Analysis',
+                  value: insights['trend'] ?? 'No trend data available',
+                  color: Colors.blue,
+                ),
+                _buildInsightTile(
+                  icon: Icons.calendar_today,
+                  title: 'Best Attendance Day',
+                  value: insights['bestDay'] ?? 'No day data available',
+                  color: Colors.green,
+                ),
+                _buildInsightTile(
+                  icon: Icons.warning,
+                  title: 'Areas of Concern',
+                  value: insights['concerns'] ?? 'No concerns identified',
+                  color: Colors.orange,
                 ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Future<Map<String, dynamic>> _getDetailedInsights() async {
+    try {
+      final insights = await MintlifyService.getAttendanceInsights(
+        classId: _selectedClass ?? '',
+        startDate: _startDate,
+        endDate: _endDate,
+        attendanceStats: {
+          'total': _attendanceStats['total'],
+          'present': _attendanceStats['present'],
+          'absent': _attendanceStats['absent'],
+          'percentage': _attendanceStats['total'] == 0
+              ? 0
+              : (_attendanceStats['present'] / _attendanceStats['total'] * 100).toStringAsFixed(1),
+        },
+      );
+
+      // Parse the AI response into structured insights
+      final content = insights['choices']?[0]?['message']?['content'] as String?;
+      if (content == null) return {};
+
+      // Extract insights from the AI response
+      final trend = _extractTrend(content);
+      final bestDay = _extractBestDay(content);
+      final concerns = _extractConcerns(content);
+
+      return {
+        'trend': trend,
+        'bestDay': bestDay,
+        'concerns': concerns,
+      };
+    } catch (e) {
+      print('Error getting detailed insights: $e');
+      return {};
+    }
+  }
+
+  String _extractTrend(String content) {
+    if (content.toLowerCase().contains('improving')) {
+      return 'Attendance is showing improvement';
+    } else if (content.toLowerCase().contains('declining')) {
+      return 'Attendance is declining';
+    } else if (content.toLowerCase().contains('stable')) {
+      return 'Attendance is stable';
+    }
+    return 'No clear trend identified';
+  }
+
+  String _extractBestDay(String content) {
+    final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    for (var day in days) {
+      if (content.toLowerCase().contains(day.toLowerCase())) {
+        return 'Highest attendance on $day';
+      }
+    }
+    return 'Best day not identified';
+  }
+
+  String _extractConcerns(String content) {
+    if (content.toLowerCase().contains('low attendance')) {
+      return 'Low attendance rates need attention';
+    } else if (content.toLowerCase().contains('irregular')) {
+      return 'Irregular attendance patterns detected';
+    } else if (content.toLowerCase().contains('improvement')) {
+      return 'Room for improvement in attendance';
+    }
+    return 'No major concerns identified';
+  }
+
+  Widget _buildInsightTile({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+  }) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, color: color),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                Text(value),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
