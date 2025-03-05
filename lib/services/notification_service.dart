@@ -269,20 +269,62 @@ class NotificationService {
     String? recipientId,
     required NotificationType type,
   }) async {
-    final notification = NotificationModel(
-      id: '', // Firestore will generate this
-      title: title,
-      description: description,
-      senderId: senderId,
-      senderName: senderName,
-      classId: classId,
-      recipientId: recipientId,
-      type: type,
-      createdAt: DateTime.now(),
-      isRead: false,
-    );
+    try {
+      final notification = {
+        'title': title,
+        'description': description,
+        'senderId': senderId,
+        'senderName': senderName,
+        'classId': classId,
+        'recipientId': recipientId ?? '',
+        'type': type.toString(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+      };
 
-    await _firestore.collection('notifications').add(notification.toMap());
+      // Add notification to Firestore
+      await _firestore.collection('notifications').add(notification);
+
+      // If this is a notification sent to a specific student, also send it to their parent
+      if (recipientId != null && recipientId.isNotEmpty) {
+        // Get the student's mobile number
+        final studentDoc = await _firestore
+            .collection('classes')
+            .doc(classId)
+            .collection('students')
+            .doc(recipientId)
+            .get();
+
+        if (studentDoc.exists) {
+          final studentData = studentDoc.data() as Map<String, dynamic>;
+          final parentMobile = studentData['mobileNumber'] as String?;
+
+          if (parentMobile != null) {
+            // Create a parent notification
+            final parentNotification = {
+              'title': title,
+              'description': description,
+              'senderId': senderId,
+              'senderName': senderName,
+              'classId': classId,
+              'recipientId': recipientId,
+              'type': type.toString(),
+              'createdAt': FieldValue.serverTimestamp(),
+              'isRead': false,
+              'isParentNotification': true,
+              'parentMobile': parentMobile,
+            };
+
+            await _firestore
+                .collection('notifications')
+                .add(parentNotification);
+          }
+        }
+      }
+    } catch (e) {
+      print('Error sending notification: $e');
+      rethrow;
+    }
   }
 
   // Get notifications stream for a user
@@ -291,31 +333,40 @@ class NotificationService {
     required String classId,
     required bool isTeacher,
   }) {
-    Query query = _firestore.collection('notifications');
+    Query query = _firestore
+        .collection('notifications')
+        .orderBy('createdAt', descending: true)
+        .limit(50);
 
     if (isTeacher) {
-      // For teachers, show notifications they sent
+      // For teachers, get notifications where they are the sender
       query = query.where('senderId', isEqualTo: userId);
+      // Only filter by classId if it's not empty
+      if (classId.isNotEmpty) {
+        query = query.where('classId', isEqualTo: classId);
+      }
     } else {
-      // For students, show notifications for their class
-      query = query.where('classId', isEqualTo: classId);
+      // For students and parents, get notifications where:
+      // 1. recipientId matches the user's ID (specific notifications)
+      // 2. recipientId is empty string (class-wide notifications)
+      // 3. For parents: also get notifications where parentMobile matches their mobile number
+      query = query
+          .where('classId', isEqualTo: classId)
+          .where('recipientId', whereIn: ['', userId]);
     }
 
-    return query
-        .orderBy('createdAt', descending: true)
-        .limit(50) // Limit to last 50 notifications for better performance
-        .snapshots()
-        .map((snapshot) {
+    return query.snapshots().map((snapshot) {
       return snapshot.docs
-          .map((doc) => NotificationModel.fromFirestore(doc))
-          .where((notification) {
-        if (isTeacher) return true;
-        // For students, include notifications that are either:
-        // 1. Class-wide (recipientId is null)
-        // 2. Specifically sent to them
-        return notification.recipientId == null ||
-            notification.recipientId == userId;
-      }).toList();
+          .map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            // For students, filter out parent notifications
+            if (!isTeacher && data['isParentNotification'] == true) {
+              return null;
+            }
+            return NotificationModel.fromFirestore(doc);
+          })
+          .whereType<NotificationModel>()
+          .toList();
     });
   }
 
@@ -328,8 +379,14 @@ class NotificationService {
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.where((doc) {
-        final recipientId = doc.data()['recipientId'];
-        return recipientId == null || recipientId == userId;
+        final data = doc.data() as Map<String, dynamic>;
+        // Skip parent notifications for students
+        if (data['isParentNotification'] == true) {
+          return false;
+        }
+        final recipientId = data['recipientId'];
+        return recipientId == '' ||
+            recipientId == userId; // Check for empty string
       }).length;
     });
   }

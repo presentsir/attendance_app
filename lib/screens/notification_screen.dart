@@ -157,11 +157,22 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Stream<List<NotificationModel>> _getNotificationsStream() {
-    return _notificationService.getNotifications(
-      userId: widget.userId,
-      classId: widget.classId,
-      isTeacher: widget.isTeacher,
-    );
+    if (widget.isTeacher) {
+      // For teachers, get all notifications they've sent
+      return _notificationService.getNotifications(
+        userId: widget.userId,
+        classId:
+            '', // Empty classId for teachers to see all their notifications
+        isTeacher: true,
+      );
+    } else {
+      // For students, get notifications for their specific class
+      return _notificationService.getNotifications(
+        userId: widget.userId,
+        classId: widget.classId,
+        isTeacher: false,
+      );
+    }
   }
 
   Widget _buildFilterChips() {

@@ -8,6 +8,7 @@ import 'teacher_dashboard.dart';
 import 'student_dashboard.dart';
 import 'teacher_signin_screen.dart'; // Import the teacher sign-in screen
 import '../services/user_session.dart';
+import 'parent_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -28,12 +29,19 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _selectedClassId;
   String? _selectedClassName;
   List<QueryDocumentSnapshot> _availableClasses = [];
+  final _parentMobileController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadSchools();
     _checkExistingSession();
+  }
+
+  @override
+  void dispose() {
+    _parentMobileController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSchools() async {
@@ -89,6 +97,17 @@ class _LoginScreenState extends State<LoginScreen> {
             classId: userData['classId'],
             school: school,
             studentName: userData['studentName'] ?? 'Student',
+          ),
+        ),
+      );
+    } else if (userType == 'parent') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ParentDashboard(
+            mobileNumber: userData['mobileNumber'],
+            school: school,
+            children: List<Map<String, dynamic>>.from(userData['children']),
           ),
         ),
       );
@@ -306,6 +325,100 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _isLoading = false;
     });
+  }
+
+  Future<void> _handleParentLogin() async {
+    if (_selectedSchool == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select a school first'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_parentMobileController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please enter mobile number'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Get all classes in the school
+      final classesSnapshot = await FirebaseFirestore.instance
+          .collection('classes')
+          .where('schoolId', isEqualTo: _selectedSchool!.affNo.toString())
+          .get();
+
+      List<Map<String, dynamic>> children = [];
+
+      // Search for students with matching mobile number in each class
+      for (var classDoc in classesSnapshot.docs) {
+        final studentsQuery = await classDoc.reference
+            .collection('students')
+            .where('mobileNumber',
+                isEqualTo: _parentMobileController.text.trim())
+            .get();
+
+        for (var studentDoc in studentsQuery.docs) {
+          final studentData = studentDoc.data();
+          children.add({
+            'id': studentDoc.id,
+            'name': studentData['name'] ?? 'Student',
+            'classId': classDoc.id,
+            'className': classDoc['name'],
+          });
+        }
+      }
+
+      if (children.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No students found with this mobile number'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Save parent session data
+      await UserSession.saveUserSession(
+        userType: 'parent',
+        userData: {
+          'school': _selectedSchool!.toJson(),
+          'mobileNumber': _parentMobileController.text.trim(),
+          'children': children,
+        },
+      );
+
+      // Navigate to parent dashboard
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ParentDashboard(
+            mobileNumber: _parentMobileController.text.trim(),
+            school: _selectedSchool!,
+            children: children,
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error during login: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      setState(() => _isLoading = false);
+    }
   }
 
   Widget _buildStudentLoginFields() {
@@ -533,6 +646,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     }),
                   ),
                 ),
+                Expanded(
+                  child: RadioListTile(
+                    title: Text('Parent'),
+                    value: 'parent',
+                    groupValue: _role,
+                    onChanged: (value) => setState(() {
+                      _role = value.toString();
+                      _selectedClassId = null;
+                      _selectedClassName = null;
+                    }),
+                  ),
+                ),
               ],
             ),
             SizedBox(height: 20),
@@ -558,19 +683,37 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 obscureText: true,
               ),
+            ] else if (_role == 'parent') ...[
+              TextFormField(
+                controller: _parentMobileController,
+                decoration: InputDecoration(
+                  labelText: 'Mobile Number',
+                  prefixIcon: Icon(Icons.phone),
+                  border: OutlineInputBorder(),
+                  hintText: 'Enter registered mobile number',
+                ),
+                keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter mobile number';
+                  }
+                  return null;
+                },
+              ),
             ],
             SizedBox(height: 30),
             _isLoading
                 ? Center(child: CircularProgressIndicator())
                 : ElevatedButton(
-                    onPressed: _handleLogin,
+                    onPressed:
+                        _role == 'parent' ? _handleParentLogin : _handleLogin,
                     style: ElevatedButton.styleFrom(
                       minimumSize: Size(double.infinity, 50),
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
                     ),
                     child: Text(
-                      'Login',
+                      _role == 'parent' ? 'Login as Parent' : 'Login',
                       style: TextStyle(fontSize: 16),
                     ),
                   ),
@@ -592,6 +735,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 padding: EdgeInsets.all(8.0),
                 child: Text(
                   'Note: Students can login with roll number and mobile number provided by their teacher.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            if (_role == 'parent')
+              Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Text(
+                  'Note: Parents can login using the mobile number registered with their child\'s account.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.grey[600],

@@ -4,7 +4,7 @@ enum NotificationType {
   motivational,
   attendanceAlert,
   teacherNotification,
-  dailyMotivation
+  dailyMotivation,
 }
 
 class NotificationModel {
@@ -14,11 +14,12 @@ class NotificationModel {
   final String senderId;
   final String senderName;
   final String classId;
-  final String? recipientId;
+  final String recipientId;
   final NotificationType type;
   final DateTime createdAt;
   final bool isRead;
-  final Map<String, dynamic>? metadata;
+  final bool isParentNotification;
+  final String? parentMobile;
 
   NotificationModel({
     required this.id,
@@ -27,11 +28,12 @@ class NotificationModel {
     required this.senderId,
     required this.senderName,
     required this.classId,
-    this.recipientId,
+    required this.recipientId,
     required this.type,
     required this.createdAt,
-    this.isRead = false,
-    this.metadata,
+    required this.isRead,
+    this.isParentNotification = false,
+    this.parentMobile,
   });
 
   factory NotificationModel.fromFirestore(DocumentSnapshot doc) {
@@ -43,14 +45,15 @@ class NotificationModel {
       senderId: data['senderId'] ?? '',
       senderName: data['senderName'] ?? '',
       classId: data['classId'] ?? '',
-      recipientId: data['recipientId'],
+      recipientId: data['recipientId'] ?? '',
       type: NotificationType.values.firstWhere(
         (e) => e.toString() == data['type'],
-        orElse: () => NotificationType.motivational,
+        orElse: () => NotificationType.teacherNotification,
       ),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       isRead: data['isRead'] ?? false,
-      metadata: data['metadata'],
+      isParentNotification: data['isParentNotification'] ?? false,
+      parentMobile: data['parentMobile'],
     );
   }
 
@@ -63,9 +66,10 @@ class NotificationModel {
       'classId': classId,
       'recipientId': recipientId,
       'type': type.toString(),
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt,
       'isRead': isRead,
-      'metadata': metadata,
+      'isParentNotification': isParentNotification,
+      'parentMobile': parentMobile,
     };
   }
 
@@ -80,7 +84,8 @@ class NotificationModel {
     NotificationType? type,
     DateTime? createdAt,
     bool? isRead,
-    Map<String, dynamic>? metadata,
+    bool? isParentNotification,
+    String? parentMobile,
   }) {
     return NotificationModel(
       id: id ?? this.id,
@@ -93,7 +98,8 @@ class NotificationModel {
       type: type ?? this.type,
       createdAt: createdAt ?? this.createdAt,
       isRead: isRead ?? this.isRead,
-      metadata: metadata ?? this.metadata,
+      isParentNotification: isParentNotification ?? this.isParentNotification,
+      parentMobile: parentMobile ?? this.parentMobile,
     );
   }
 }
