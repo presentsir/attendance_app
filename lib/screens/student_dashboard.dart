@@ -5,37 +5,46 @@ import '../models/school_model.dart';
 import '../widgets/attendance_chart.dart';
 import 'login_screen.dart';
 import '../services/user_session.dart';
+import 'notification_screen.dart';
+import '../services/notification_service.dart';
 
 class StudentDashboard extends StatefulWidget {
-  final School school;
-  final String rollNo;
-  final String studentName;
+  final String userId;
+  final String studentId;
   final String classId;
+  final School school;
+  final String studentName;
 
-  StudentDashboard({
-    required this.school,
-    required this.rollNo,
-    required this.studentName,
+  const StudentDashboard({
+    Key? key,
+    required this.userId,
+    required this.studentId,
     required this.classId,
-  });
+    required this.school,
+    required this.studentName,
+  }) : super(key: key);
 
   @override
-  _StudentDashboardState createState() => _StudentDashboardState();
+  State<StudentDashboard> createState() => _StudentDashboardState();
 }
 
 class _StudentDashboardState extends State<StudentDashboard> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
   int _selectedIndex = 0;
   double _attendancePercentage = 0.0;
   bool _isLoading = true;
   Map<String, dynamic>? _studentData;
   Map<String, dynamic>? _classData;
   Map<String, dynamic>? _teacherData;
+  int _unreadNotifications = 0;
 
   @override
   void initState() {
     super.initState();
     _loadStudentData();
+    _loadUnreadNotifications();
+    _sendWelcomeNotification();
   }
 
   Future<void> _loadStudentData() async {
@@ -45,7 +54,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
           .collection('classes')
           .doc(widget.classId)
           .collection('students')
-          .where('rollNumber', isEqualTo: widget.rollNo)
+          .where('rollNumber', isEqualTo: widget.studentId)
           .get();
 
       if (studentDoc.docs.isNotEmpty) {
@@ -82,7 +91,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
       final QuerySnapshot attendanceSnapshot = await FirebaseFirestore.instance
           .collection('attendance_records')
           .where('classId', isEqualTo: widget.classId)
-          .where('rollNumber', isEqualTo: widget.rollNo)
+          .where('rollNumber', isEqualTo: widget.studentId)
           .orderBy('date')
           .get();
 
@@ -169,6 +178,30 @@ class _StudentDashboardState extends State<StudentDashboard> {
     }
   }
 
+  void _loadUnreadNotifications() {
+    _notificationService
+        .getUnreadCount(widget.userId, widget.classId)
+        .listen((count) {
+      if (mounted) {
+        setState(() {
+          _unreadNotifications = count;
+        });
+      }
+    });
+  }
+
+  Future<void> _sendWelcomeNotification() async {
+    try {
+      await _notificationService.sendWelcomeNotification(
+        studentId: widget.studentId,
+        studentName: widget.studentName,
+        classId: widget.classId,
+      );
+    } catch (e) {
+      print('Error sending welcome notification: $e');
+    }
+  }
+
   Widget _buildProfileCard() {
     if (_isLoading) {
       return Card(
@@ -244,7 +277,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
           MaterialPageRoute(
             builder: (context) => AttendanceRecordsScreen(
               classId: widget.classId,
-              rollNo: widget.rollNo,
+              rollNo: widget.studentId,
               studentName: _studentData?['name'] ?? 'Student',
             ),
           ),
@@ -264,8 +297,53 @@ class _StudentDashboardState extends State<StudentDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Student Profile'),
-        centerTitle: true,
+        title: const Text('Student Dashboard'),
+        actions: [
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NotificationScreen(
+                        userId: widget.userId,
+                        isTeacher: false,
+                        school: widget.school,
+                        classId: widget.classId,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              if (_unreadNotifications > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 14,
+                      minHeight: 14,
+                    ),
+                    child: Text(
+                      _unreadNotifications.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

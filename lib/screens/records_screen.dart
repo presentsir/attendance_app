@@ -413,7 +413,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
   }
 
   Widget _buildAIInsights() {
-    if (_selectedClass == null || _attendanceStats['total'] == 0) return SizedBox();
+    if (_selectedClass == null || _attendanceStats['total'] == 0)
+      return SizedBox();
 
     return FutureBuilder<Map<String, dynamic>>(
       future: _getDetailedInsights(),
@@ -517,12 +518,14 @@ class _RecordsScreenState extends State<RecordsScreen> {
           'absent': _attendanceStats['absent'],
           'percentage': _attendanceStats['total'] == 0
               ? 0
-              : (_attendanceStats['present'] / _attendanceStats['total'] * 100).toStringAsFixed(1),
+              : (_attendanceStats['present'] / _attendanceStats['total'] * 100)
+                  .toStringAsFixed(1),
         },
       );
 
       // Parse the AI response into structured insights
-      final content = insights['choices']?[0]?['message']?['content'] as String?;
+      final content =
+          insights['choices']?[0]?['message']?['content'] as String?;
       if (content == null) return {};
 
       // Extract insights from the AI response
@@ -553,7 +556,14 @@ class _RecordsScreenState extends State<RecordsScreen> {
   }
 
   String _extractBestDay(String content) {
-    final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    final days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday'
+    ];
     for (var day in days) {
       if (content.toLowerCase().contains(day.toLowerCase())) {
         return 'Highest attendance on $day';
@@ -679,7 +689,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
                     SizedBox(height: 8),
                     Text(
                       'Database Setup Required',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     SizedBox(height: 8),
                     Text(
@@ -697,7 +708,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Collection: attendance_records (with "a", not "e")',
+                          Text(
+                              'Collection: attendance_records (with "a", not "e")',
                               style: TextStyle(fontWeight: FontWeight.bold)),
                           SizedBox(height: 8),
                           Text('Index 1:'),
@@ -843,7 +855,9 @@ class _RecordsScreenState extends State<RecordsScreen> {
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: isPresent ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                    color: isPresent
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.red.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -872,7 +886,8 @@ class _RecordsScreenState extends State<RecordsScreen> {
   Future<void> _showEditAttendanceDialog(DocumentSnapshot record) async {
     final currentStatus = record['status'] == 'present';
     final studentName = record['studentName'];
-    final date = DateFormat('MMM dd, yyyy').format((record['date'] as Timestamp).toDate());
+    final date = DateFormat('MMM dd, yyyy')
+        .format((record['date'] as Timestamp).toDate());
 
     final bool? result = await showDialog<bool>(
       context: context,

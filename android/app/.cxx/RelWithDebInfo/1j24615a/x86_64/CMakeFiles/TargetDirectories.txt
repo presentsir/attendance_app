@@ -1,0 +1,2 @@
+F:/PRESENT SIR GIT/attendance_app/android/app/.cxx/RelWithDebInfo/1j24615a/x86_64/CMakeFiles/edit_cache.dir
+F:/PRESENT SIR GIT/attendance_app/android/app/.cxx/RelWithDebInfo/1j24615a/x86_64/CMakeFiles/rebuild_cache.dir

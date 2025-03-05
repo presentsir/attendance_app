@@ -7,6 +7,7 @@ class AttendanceScreen extends StatefulWidget {
   final String teacherId;
 
   AttendanceScreen({required this.teacherId});
+  
 
   @override
   _AttendanceScreenState createState() => _AttendanceScreenState();
@@ -141,13 +142,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             return Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
+                child: Column(
+                  children: [
                     Icon(Icons.warning, color: Colors.orange, size: 48),
                     SizedBox(height: 8),
                     Text(
                       'No classes found',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     Text(
                       'Add classes in your profile section',
@@ -162,25 +164,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           return Column(
             children: [
               DropdownButtonFormField<String>(
-                  value: _selectedClass,
+                value: _selectedClass,
                 decoration: InputDecoration(
                   labelText: 'Select Class',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.class_),
                 ),
-                  items: classes.map((classDoc) {
+                items: classes.map((classDoc) {
                   final classData = classDoc.data() as Map<String, dynamic>;
-                  print('Creating dropdown item for class: ${classData['name']}');
-                    return DropdownMenuItem<String>(
-                      value: classDoc.id,
+                  print(
+                      'Creating dropdown item for class: ${classData['name']}');
+                  return DropdownMenuItem<String>(
+                    value: classDoc.id,
                     child: Text(classData['name'] ?? 'Unnamed Class'),
-                    );
-                  }).toList(),
+                  );
+                }).toList(),
                 onChanged: (value) {
                   if (value != null) {
                     print('Selected class ID: $value');
-                    final selectedClass = classes.firstWhere((doc) => doc.id == value);
-                    final classData = selectedClass.data() as Map<String, dynamic>;
+                    final selectedClass =
+                        classes.firstWhere((doc) => doc.id == value);
+                    final classData =
+                        selectedClass.data() as Map<String, dynamic>;
                     print('Selected class data: $classData');
 
                     setState(() {
@@ -189,12 +194,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     });
                     _onClassSelected(value);
                   }
-                  },
+                },
               ),
             ],
-                );
-              },
-            ),
+          );
+        },
+      ),
     );
   }
 
@@ -375,7 +380,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
   }
 
-  Widget _buildAttendanceButton(bool isPresent, IconData icon, Color color, String label) {
+  Widget _buildAttendanceButton(
+      bool isPresent, IconData icon, Color color, String label) {
     return ElevatedButton(
       onPressed: () => _markAttendance(isPresent),
       style: ElevatedButton.styleFrom(
@@ -429,7 +435,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           .collection('students')
           .get();
 
-      print('Students query completed. Found: ${studentsSnapshot.docs.length} students');
+      print(
+          'Students query completed. Found: ${studentsSnapshot.docs.length} students');
       for (var doc in studentsSnapshot.docs) {
         print('Student data: ${doc.data()}');
       }
@@ -495,10 +502,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
 
     if (picked != null && picked != _selectedDate) {
-    setState(() {
+      setState(() {
         _selectedDate = picked;
-      _currentStudentIndex = 0;
-    });
+        _currentStudentIndex = 0;
+      });
       await _checkAttendance();
     }
   }

@@ -8,6 +8,8 @@ import 'teacher_dashboard.dart';
 import 'student_dashboard.dart';
 import 'teacher_signin_screen.dart'; // Import the teacher sign-in screen
 import '../services/user_session.dart';
+import 'parent_dashboard.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -28,12 +30,19 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _selectedClassId;
   String? _selectedClassName;
   List<QueryDocumentSnapshot> _availableClasses = [];
+  final _parentMobileController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadSchools();
     _checkExistingSession();
+  }
+
+  @override
+  void dispose() {
+    _parentMobileController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSchools() async {
@@ -73,8 +82,9 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(
           builder: (context) => TeacherDashboard(
             teacherId: userData['teacherId'],
-            school: school, // Use the reconstructed school object
+            school: school,
             teacherName: userData['teacherName'] ?? 'Teacher',
+            classId: userData['classId'],
           ),
         ),
       );
@@ -83,10 +93,22 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => StudentDashboard(
-            school: school, // Use the reconstructed school object
-            rollNo: userData['rollNo'],
-            studentName: userData['studentName'],
+            userId: userData['rollNo'],
+            studentId: userData['rollNo'],
             classId: userData['classId'],
+            school: school,
+            studentName: userData['studentName'] ?? 'Student',
+          ),
+        ),
+      );
+    } else if (userType == 'parent') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ParentDashboard(
+            mobileNumber: userData['mobileNumber'],
+            school: school,
+            children: List<Map<String, dynamic>>.from(userData['children']),
           ),
         ),
       );
@@ -178,11 +200,12 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => StudentDashboard(
-              school: _selectedSchool!,
-              rollNo: _rollNoController.text.trim(),
-              studentName: studentData['name'] ?? 'Student',
+            builder: (context) => StudentDashboard(
+              userId: _rollNoController.text.trim(),
+              studentId: _rollNoController.text.trim(),
               classId: _selectedClassId!,
+              school: _selectedSchool!,
+              studentName: studentData['name'] ?? 'Student',
             ),
           ),
         );
@@ -229,6 +252,18 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
+        // Get the teacher's class ID
+        final classQuery = await FirebaseFirestore.instance
+            .collection('classes')
+            .where('schoolId', isEqualTo: _selectedSchool!.affNo.toString())
+            .where('teacherId', isEqualTo: userCredential.user!.uid)
+            .get();
+
+        String? classId;
+        if (classQuery.docs.isNotEmpty) {
+          classId = classQuery.docs.first.id;
+        }
+
         // Save teacher session data
         await UserSession.saveUserSession(
           userType: 'teacher',
@@ -237,6 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
             'school': _selectedSchool!.toJson(),
             'teacherName':
                 teacherData['name'] ?? _emailController.text.split('@')[0],
+            'classId': classId,
           },
         );
 
@@ -248,6 +284,7 @@ class _LoginScreenState extends State<LoginScreen> {
               teacherName:
                   teacherData['name'] ?? _emailController.text.split('@')[0],
               teacherId: userCredential.user!.uid,
+              classId: classId ?? '', // Pass empty string if no class assigned
             ),
           ),
         );
@@ -285,11 +322,105 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
+  Future<void> _handleParentLogin() async {
+    if (_selectedSchool == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select a school first'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_parentMobileController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please enter mobile number'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Get all classes in the school
+      final classesSnapshot = await FirebaseFirestore.instance
+          .collection('classes')
+          .where('schoolId', isEqualTo: _selectedSchool!.affNo.toString())
+          .get();
+
+      List<Map<String, dynamic>> children = [];
+
+      // Search for students with matching mobile number in each class
+      for (var classDoc in classesSnapshot.docs) {
+        final studentsQuery = await classDoc.reference
+            .collection('students')
+            .where('mobileNumber',
+                isEqualTo: _parentMobileController.text.trim())
+            .get();
+
+        for (var studentDoc in studentsQuery.docs) {
+          final studentData = studentDoc.data();
+          children.add({
+            'id': studentDoc.id,
+            'name': studentData['name'] ?? 'Student',
+            'classId': classDoc.id,
+            'className': classDoc['name'],
+          });
+        }
+      }
+
+      if (children.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No students found with this mobile number'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Save parent session data
+      await UserSession.saveUserSession(
+        userType: 'parent',
+        userData: {
+          'school': _selectedSchool!.toJson(),
+          'mobileNumber': _parentMobileController.text.trim(),
+          'children': children,
+        },
+      );
+
+      // Navigate to parent dashboard
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ParentDashboard(
+            mobileNumber: _parentMobileController.text.trim(),
+            school: _selectedSchool!,
+            children: children,
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error during login: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      setState(() => _isLoading = false);
+    }
+  }
+
   Widget _buildStudentLoginFields() {
     return Column(
       children: [
         if (_selectedSchool != null) ...[
-          SizedBox(height: 20),
+          SizedBox(height: 16),
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('classes')
@@ -298,7 +429,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
-                // Check specifically for the index error
                 if (snapshot.error.toString().contains('failed-precondition') ||
                     snapshot.error.toString().contains('requires an index')) {
                   return Card(
@@ -389,16 +519,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
               return DropdownButtonFormField<String>(
                 value: _selectedClassId,
+                isExpanded: true,
                 decoration: InputDecoration(
                   labelText: 'Select Your Class',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.class_),
                   hintText: 'Choose your class',
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
                 items: _availableClasses.map((classDoc) {
                   return DropdownMenuItem<String>(
                     value: classDoc.id,
-                    child: Text(classDoc['name']),
+                    child: Text(
+                      classDoc['name'],
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {
@@ -413,7 +549,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
         if (_selectedClassId != null) ...[
-          SizedBox(height: 20),
+          SizedBox(height: 16),
           TextField(
             controller: _rollNoController,
             decoration: InputDecoration(
@@ -421,10 +557,12 @@ class _LoginScreenState extends State<LoginScreen> {
               prefixIcon: Icon(Icons.numbers),
               border: OutlineInputBorder(),
               hintText: 'Enter your roll number',
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
             keyboardType: TextInputType.number,
           ),
-          SizedBox(height: 20),
+          SizedBox(height: 16),
           TextField(
             controller: _mobileController,
             decoration: InputDecoration(
@@ -432,6 +570,8 @@ class _LoginScreenState extends State<LoginScreen> {
               prefixIcon: Icon(Icons.phone),
               hintText: 'Enter registered mobile number',
               border: OutlineInputBorder(),
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
             keyboardType: TextInputType.phone,
           ),
@@ -446,112 +586,254 @@ class _LoginScreenState extends State<LoginScreen> {
       appBar: AppBar(
         title: Text('Login'),
         centerTitle: true,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(20),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            DropdownSearch<School>(
-              items: _schools,
-              itemAsString: (School school) =>
-                  '${school.name} (${school.affNo})',
-              onChanged: (School? school) {
-                setState(() {
-                  _selectedSchool = school;
-                  _selectedClassId = null;
-                  _selectedClassName = null;
-                  if (school != null) {
-                    _schoolCodeController.text = school.affNo.toString();
-                  }
-                });
-              },
-              dropdownDecoratorProps: DropDownDecoratorProps(
-                dropdownSearchDecoration: InputDecoration(
-                  labelText: 'Select a school',
-                  hintText: 'Search by school name or code',
-                  border: OutlineInputBorder(),
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Select School',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    DropdownSearch<School>(
+                      items: _schools,
+                      itemAsString: (School school) =>
+                          '${school.name} (${school.affNo})',
+                      onChanged: (School? school) {
+                        setState(() {
+                          _selectedSchool = school;
+                          _selectedClassId = null;
+                          _selectedClassName = null;
+                          if (school != null) {
+                            _schoolCodeController.text =
+                                school.affNo.toString();
+                          }
+                        });
+                      },
+                      dropdownDecoratorProps: DropDownDecoratorProps(
+                        dropdownSearchDecoration: InputDecoration(
+                          labelText: 'Select a school',
+                          hintText: 'Search by school name or code',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                        ),
+                      ),
+                      popupProps: PopupProps.menu(
+                        showSearchBox: true,
+                        searchFieldProps: TextFieldProps(
+                          decoration: InputDecoration(
+                            hintText: 'Search by school name or code',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              popupProps: PopupProps.menu(
-                showSearchBox: true,
-                searchFieldProps: TextFieldProps(
-                  decoration: InputDecoration(
-                    hintText: 'Search by school name or code',
-                    border: OutlineInputBorder(),
-                  ),
+            ),
+            SizedBox(height: 16),
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Select Role',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          RadioListTile(
+                            title: Text('Student'),
+                            value: 'student',
+                            groupValue: _role,
+                            onChanged: (value) => setState(() {
+                              _role = value.toString();
+                              _selectedClassId = null;
+                              _selectedClassName = null;
+                            }),
+                          ),
+                          Divider(height: 1),
+                          RadioListTile(
+                            title: Text('Teacher'),
+                            value: 'teacher',
+                            groupValue: _role,
+                            onChanged: (value) => setState(() {
+                              _role = value.toString();
+                              _selectedClassId = null;
+                              _selectedClassName = null;
+                            }),
+                          ),
+                          Divider(height: 1),
+                          RadioListTile(
+                            title: Text('Parent'),
+                            value: 'parent',
+                            groupValue: _role,
+                            onChanged: (value) => setState(() {
+                              _role = value.toString();
+                              _selectedClassId = null;
+                              _selectedClassName = null;
+                            }),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Login Details',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    if (_role == 'student')
+                      _buildStudentLoginFields()
+                    else if (_role == 'teacher') ...[
+                      TextField(
+                        controller: _emailController,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: Icon(Icons.email),
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      SizedBox(height: 16),
+                      TextField(
+                        controller: _passwordController,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: Icon(Icons.lock),
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                        ),
+                        obscureText: true,
+                      ),
+                      SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            if (_emailController.text.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content:
+                                      Text('Please enter your email first'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
+                            if (_selectedSchool == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content:
+                                      Text('Please select your school first'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ForgotPasswordScreen(
+                                  email: _emailController.text,
+                                  school: _selectedSchool!,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Text('Forgot Password?'),
+                        ),
+                      ),
+                    ] else if (_role == 'parent') ...[
+                      TextFormField(
+                        controller: _parentMobileController,
+                        decoration: InputDecoration(
+                          labelText: 'Mobile Number',
+                          prefixIcon: Icon(Icons.phone),
+                          border: OutlineInputBorder(),
+                          hintText: 'Enter registered mobile number',
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                        ),
+                        keyboardType: TextInputType.phone,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter mobile number';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
             SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: RadioListTile(
-                    title: Text('Student'),
-                    value: 'student',
-                    groupValue: _role,
-                    onChanged: (value) => setState(() {
-                      _role = value.toString();
-                      _selectedClassId = null;
-                      _selectedClassName = null;
-                    }),
-                  ),
-                ),
-                Expanded(
-                  child: RadioListTile(
-                    title: Text('Teacher'),
-                    value: 'teacher',
-                    groupValue: _role,
-                    onChanged: (value) => setState(() {
-                      _role = value.toString();
-                      _selectedClassId = null;
-                      _selectedClassName = null;
-                    }),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            if (_role == 'student')
-              _buildStudentLoginFields()
-            else if (_role == 'teacher') ...[
-              TextField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email),
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              SizedBox(height: 20),
-              TextField(
-                controller: _passwordController,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: Icon(Icons.lock),
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-              ),
-            ],
-            SizedBox(height: 30),
             _isLoading
                 ? Center(child: CircularProgressIndicator())
                 : ElevatedButton(
-                    onPressed: _handleLogin,
+                    onPressed:
+                        _role == 'parent' ? _handleParentLogin : _handleLogin,
                     style: ElevatedButton.styleFrom(
-                      minimumSize: Size(double.infinity, 50),
+                      minimumSize: Size(double.infinity, 56),
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     child: Text(
-                      'Login',
-                      style: TextStyle(fontSize: 16),
+                      _role == 'parent' ? 'Login as Parent' : 'Login',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
-            SizedBox(height: 20),
+            SizedBox(height: 16),
             if (_role == 'teacher')
               TextButton(
                 onPressed: () {
@@ -572,7 +854,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.grey[600],
-                    fontSize: 12,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            if (_role == 'parent')
+              Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Text(
+                  'Note: Parents can login using the mobile number registered with their child\'s account.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 13,
                   ),
                 ),
               ),
