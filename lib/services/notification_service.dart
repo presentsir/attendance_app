@@ -276,7 +276,8 @@ class NotificationService {
         'senderId': senderId,
         'senderName': senderName,
         'classId': classId,
-        'recipientId': recipientId ?? '',
+        'recipientId':
+            recipientId ?? '', // Use empty string for class-wide notifications
         'type': type.toString(),
         'createdAt': FieldValue.serverTimestamp(),
         'isRead': false,
@@ -346,13 +347,15 @@ class NotificationService {
         query = query.where('classId', isEqualTo: classId);
       }
     } else {
-      // For students and parents, get notifications where:
-      // 1. recipientId matches the user's ID (specific notifications)
+      // For students, get notifications where:
+      // 1. recipientId matches the student's ID (specific notifications)
       // 2. recipientId is empty string (class-wide notifications)
-      // 3. For parents: also get notifications where parentMobile matches their mobile number
-      query = query
-          .where('classId', isEqualTo: classId)
-          .where('recipientId', whereIn: ['', userId]);
+      // 3. classId matches the student's class
+      query = query.where('classId', isEqualTo: classId).where('recipientId',
+          whereIn: [
+            userId,
+            ''
+          ]); // Include both specific and class-wide notifications
     }
 
     return query.snapshots().map((snapshot) {
