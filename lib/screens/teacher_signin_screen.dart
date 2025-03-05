@@ -107,7 +107,7 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
           .set({
         'name': _nameController.text,
         'email': _emailController.text,
-        'phoneNumber': _phoneController.text,
+        'phoneNumber': '+91${_phoneController.text.trim()}',
         'educationBoard': _selectedBoard,
         'schoolId': _selectedSchool!.affNo.toString(),
         'schoolName': _selectedSchool!.name,
@@ -214,6 +214,7 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
                 labelText: 'Phone Number (10 digits) *',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.phone),
+                prefixText: '+91 ',
                 hintText: 'Enter 10-digit mobile number',
               ),
               keyboardType: TextInputType.phone,
