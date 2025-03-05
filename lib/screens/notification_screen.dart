@@ -9,12 +9,14 @@ class NotificationScreen extends StatefulWidget {
   final String userId;
   final bool isTeacher;
   final School school;
+  final String classId;
 
   const NotificationScreen({
     Key? key,
     required this.userId,
     required this.isTeacher,
     required this.school,
+    required this.classId,
   }) : super(key: key);
 
   @override
@@ -121,28 +123,20 @@ class _NotificationScreenState extends State<NotificationScreen> {
           senderId: widget.userId,
           senderName: 'Teacher',
           classId: _selectedClass!,
-          studentId: _selectedStudent,
+          recipientId: _selectedStudent,
           type: NotificationType.teacherNotification,
         );
       } else {
-        // Get all students in the class and send to each
-        final studentsSnapshot = await FirebaseFirestore.instance
-            .collection('classes')
-            .doc(_selectedClass)
-            .collection('students')
-            .get();
-
-        for (var studentDoc in studentsSnapshot.docs) {
-          await notificationService.sendNotification(
-            title: _titleController.text,
-            description: _descriptionController.text,
-            senderId: widget.userId,
-            senderName: 'Teacher',
-            classId: _selectedClass!,
-            studentId: studentDoc.id,
-            type: NotificationType.teacherNotification,
-          );
-        }
+        // Send to entire class with null recipientId
+        await notificationService.sendNotification(
+          title: _titleController.text,
+          description: _descriptionController.text,
+          senderId: widget.userId,
+          senderName: 'Teacher',
+          classId: _selectedClass!,
+          recipientId: null, // null recipientId means it's for the entire class
+          type: NotificationType.teacherNotification,
+        );
       }
 
       _titleController.clear();
@@ -162,12 +156,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  Stream<QuerySnapshot> _getNotificationsStream() {
-    return FirebaseFirestore.instance
-        .collection('notifications')
-        .where('recipientId', isEqualTo: widget.userId)
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+  Stream<List<NotificationModel>> _getNotificationsStream() {
+    return _notificationService.getNotifications(
+      userId: widget.userId,
+      classId: widget.classId,
+      isTeacher: widget.isTeacher,
+    );
   }
 
   Widget _buildFilterChips() {
@@ -327,10 +321,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ],
       ),
       body: StreamBuilder<List<NotificationModel>>(
-        stream: _notificationService.getNotifications(
-          widget.userId,
-          widget.isTeacher,
-        ),
+        stream: _getNotificationsStream(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(
@@ -552,24 +543,17 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     final notificationService = NotificationService();
 
                     if (sendToAllStudents) {
-                      // Get all students in the class
-                      final studentsSnapshot = await FirebaseFirestore.instance
-                          .collection('classes')
-                          .doc(selectedClassId)
-                          .collection('students')
-                          .get();
-
-                      for (var studentDoc in studentsSnapshot.docs) {
-                        await notificationService.sendNotification(
-                          title: title,
-                          description: message,
-                          senderId: widget.userId,
-                          senderName: 'Teacher',
-                          classId: selectedClassId!,
-                          studentId: studentDoc.id,
-                          type: type,
-                        );
-                      }
+                      // Send a single class-wide notification
+                      await notificationService.sendNotification(
+                        title: title,
+                        description: message,
+                        senderId: widget.userId,
+                        senderName: 'Teacher',
+                        classId: selectedClassId!,
+                        recipientId:
+                            null, // null means it's for the entire class
+                        type: type,
+                      );
                     } else {
                       await notificationService.sendNotification(
                         title: title,
@@ -577,7 +561,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         senderId: widget.userId,
                         senderName: 'Teacher',
                         classId: selectedClassId!,
-                        studentId: selectedStudentId,
+                        recipientId: selectedStudentId,
                         type: type,
                       );
                     }
@@ -617,7 +601,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   Future<void> _markAllAsRead() async {
     final notifications = await _notificationService
-        .getNotifications(widget.userId, widget.isTeacher)
+        .getNotifications(
+          userId: widget.userId,
+          classId: widget.classId,
+          isTeacher: widget.isTeacher,
+        )
         .first;
 
     for (var notification in notifications) {

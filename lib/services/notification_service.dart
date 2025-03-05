@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
+import 'dart:async';
 import '../models/notification_model.dart';
 import '../config/api_keys.dart';
 
@@ -265,7 +266,7 @@ class NotificationService {
     required String senderId,
     required String senderName,
     required String classId,
-    String? studentId,
+    String? recipientId,
     required NotificationType type,
   }) async {
     final notification = NotificationModel(
@@ -275,7 +276,7 @@ class NotificationService {
       senderId: senderId,
       senderName: senderName,
       classId: classId,
-      recipientId: studentId,
+      recipientId: recipientId,
       type: type,
       createdAt: DateTime.now(),
       isRead: false,
@@ -285,63 +286,52 @@ class NotificationService {
   }
 
   // Get notifications stream for a user
-  Stream<List<NotificationModel>> getNotifications(
-      String userId, bool isTeacher) {
+  Stream<List<NotificationModel>> getNotifications({
+    required String userId,
+    required String classId,
+    required bool isTeacher,
+  }) {
     Query query = _firestore.collection('notifications');
 
     if (isTeacher) {
       // For teachers, show notifications they sent
       query = query.where('senderId', isEqualTo: userId);
     } else {
-      // For students, show both:
-      // 1. Notifications specifically sent to them
-      // 2. Notifications sent to their class
-      final studentQuery = query
-          .where('recipientId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true);
-
-      // Get class-wide notifications
-      final classQuery = _firestore
-          .collection('notifications')
-          .where('classId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true);
-
-      // Combine both streams
-      return studentQuery.snapshots().asyncMap((studentSnap) async {
-        final classSnap = await classQuery.get();
-
-        final studentNotifications = studentSnap.docs
-            .map((doc) => NotificationModel.fromFirestore(doc))
-            .toList();
-
-        final classNotifications = classSnap.docs
-            .map((doc) => NotificationModel.fromFirestore(doc))
-            .toList();
-
-        // Combine and sort by creation date
-        final allNotifications = [
-          ...studentNotifications,
-          ...classNotifications
-        ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-        return allNotifications;
-      });
+      // For students, show notifications for their class
+      query = query.where('classId', isEqualTo: classId);
     }
 
-    return query.orderBy('createdAt', descending: true).snapshots().map(
-        (snapshot) => snapshot.docs
-            .map((doc) => NotificationModel.fromFirestore(doc))
-            .toList());
+    return query
+        .orderBy('createdAt', descending: true)
+        .limit(50) // Limit to last 50 notifications for better performance
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => NotificationModel.fromFirestore(doc))
+          .where((notification) {
+        if (isTeacher) return true;
+        // For students, include notifications that are either:
+        // 1. Class-wide (recipientId is null)
+        // 2. Specifically sent to them
+        return notification.recipientId == null ||
+            notification.recipientId == userId;
+      }).toList();
+    });
   }
 
   // Get unread notifications count
-  Stream<int> getUnreadCount(String userId) {
+  Stream<int> getUnreadCount(String userId, String classId) {
     return _firestore
         .collection('notifications')
-        .where('recipientId', isEqualTo: userId)
+        .where('classId', isEqualTo: classId)
         .where('isRead', isEqualTo: false)
         .snapshots()
-        .map((snapshot) => snapshot.docs.length);
+        .map((snapshot) {
+      return snapshot.docs.where((doc) {
+        final recipientId = doc.data()['recipientId'];
+        return recipientId == null || recipientId == userId;
+      }).length;
+    });
   }
 
   // Mark notification as read
@@ -412,17 +402,17 @@ class NotificationService {
     required String studentId,
     required String studentName,
     required String classId,
-    required String schoolName,
   }) async {
-    final message = await generateMotivationalMessage(studentName);
+    // Use predefined message instead of generating one
+    final message = _getRandomFallbackMessage();
 
     await sendNotification(
-      title: 'Welcome to $schoolName!',
+      title: 'Welcome to RANI PUBLIC SCHOOL!',
       description: message,
       senderId: 'system',
       senderName: 'School System',
       classId: classId,
-      studentId: studentId,
+      recipientId: studentId,
       type: NotificationType.motivational,
     );
   }
@@ -490,7 +480,7 @@ class NotificationService {
       senderId: 'system',
       senderName: 'System',
       classId: classId,
-      studentId: studentId,
+      recipientId: studentId,
       type: NotificationType.attendanceAlert,
     );
   }
@@ -499,25 +489,19 @@ class NotificationService {
   Future<void> sendDailyMotivation({
     required String studentId,
     required String studentName,
-    required double attendancePercentage,
+    required String classId,
   }) async {
-    final message = await generateMotivationalMessage(studentName);
+    // Use predefined message instead of generating one
+    final message = _getRandomFallbackMessage();
 
     await sendNotification(
       title: 'Daily Motivation',
       description: message,
       senderId: 'system',
-      senderName: 'System',
-      classId: '',
-      studentId: studentId,
+      senderName: 'School System',
+      classId: classId,
+      recipientId: studentId,
       type: NotificationType.dailyMotivation,
-    );
-
-    // Schedule the next daily motivation
-    await scheduleDailyMotivation(
-      studentId: studentId,
-      studentName: studentName,
-      attendancePercentage: attendancePercentage,
     );
   }
 
@@ -534,7 +518,7 @@ class NotificationService {
       await sendDailyMotivation(
         studentId: schedule.id,
         studentName: data['studentName'],
-        attendancePercentage: data['attendancePercentage'],
+        classId: data['classId'],
       );
     }
   }

@@ -73,8 +73,9 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(
           builder: (context) => TeacherDashboard(
             teacherId: userData['teacherId'],
-            school: school, // Use the reconstructed school object
+            school: school,
             teacherName: userData['teacherName'] ?? 'Teacher',
+            classId: userData['classId'],
           ),
         ),
       );
@@ -231,6 +232,24 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
+        // Get the teacher's class ID
+        final classQuery = await FirebaseFirestore.instance
+            .collection('classes')
+            .where('schoolId', isEqualTo: _selectedSchool!.affNo.toString())
+            .where('teacherId', isEqualTo: userCredential.user!.uid)
+            .get();
+
+        if (classQuery.docs.isEmpty) {
+          await FirebaseAuth.instance.signOut();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('No class assigned to this teacher')),
+          );
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        final classId = classQuery.docs.first.id;
+
         // Save teacher session data
         await UserSession.saveUserSession(
           userType: 'teacher',
@@ -239,6 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
             'school': _selectedSchool!.toJson(),
             'teacherName':
                 teacherData['name'] ?? _emailController.text.split('@')[0],
+            'classId': classId,
           },
         );
 
@@ -250,6 +270,7 @@ class _LoginScreenState extends State<LoginScreen> {
               teacherName:
                   teacherData['name'] ?? _emailController.text.split('@')[0],
               teacherId: userCredential.user!.uid,
+              classId: classId,
             ),
           ),
         );
@@ -547,7 +568,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       minimumSize: Size(double.infinity, 50),
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
-                      
                     ),
                     child: Text(
                       'Login',

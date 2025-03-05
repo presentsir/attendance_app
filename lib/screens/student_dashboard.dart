@@ -179,7 +179,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 
   void _loadUnreadNotifications() {
-    _notificationService.getUnreadCount(widget.userId).listen((count) {
+    _notificationService
+        .getUnreadCount(widget.userId, widget.classId)
+        .listen((count) {
       if (mounted) {
         setState(() {
           _unreadNotifications = count;
@@ -194,7 +196,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
         studentId: widget.studentId,
         studentName: widget.studentName,
         classId: widget.classId,
-        schoolName: widget.school.name,
       );
     } catch (e) {
       print('Error sending welcome notification: $e');
@@ -310,6 +311,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                         userId: widget.userId,
                         isTeacher: false,
                         school: widget.school,
+                        classId: widget.classId,
                       ),
                     ),
                   );

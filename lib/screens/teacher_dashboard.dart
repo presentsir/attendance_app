@@ -13,11 +13,13 @@ class TeacherDashboard extends StatefulWidget {
   final School school; // School data passed from the login screen
   final String teacherName; // Teacher name passed from the login screen
   final String teacherId; // Add teacherId
+  final String classId; // Add classId
 
   TeacherDashboard({
     required this.school,
     required this.teacherName,
     required this.teacherId, // Add teacherId parameter
+    required this.classId, // Add classId parameter
   });
 
   @override
@@ -58,7 +60,9 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   }
 
   void _loadUnreadNotifications() {
-    _notificationService.getUnreadCount(widget.teacherId).listen((count) {
+    _notificationService
+        .getUnreadCount(widget.teacherId, widget.classId)
+        .listen((count) {
       if (mounted) {
         setState(() {
           _unreadNotifications = count;
@@ -96,6 +100,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                         userId: widget.teacherId,
                         isTeacher: true,
                         school: widget.school,
+                        classId: widget.classId,
                       ),
                     ),
                   );
