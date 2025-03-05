@@ -5,6 +5,8 @@ import '../models/school_model.dart';
 import '../widgets/attendance_chart.dart';
 import 'login_screen.dart';
 import '../services/user_session.dart';
+import '../services/notification_service.dart';
+import 'student_notifications_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
   final School school;
@@ -25,6 +27,7 @@ class StudentDashboard extends StatefulWidget {
 
 class _StudentDashboardState extends State<StudentDashboard> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
   int _selectedIndex = 0;
   double _attendancePercentage = 0.0;
   bool _isLoading = true;
@@ -266,6 +269,63 @@ class _StudentDashboardState extends State<StudentDashboard> {
       appBar: AppBar(
         title: Text('Student Profile'),
         centerTitle: true,
+        actions: [
+          // Add notification bell icon with badge
+          StreamBuilder<int>(
+            stream: _notificationService.getUnreadNotificationCount(
+              widget.classId,
+              widget.rollNo
+            ),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.notifications),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => StudentNotificationsScreen(
+                            classId: widget.classId,
+                            rollNumber: widget.rollNo,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          unreadCount > 9 ? '9+' : '$unreadCount',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
