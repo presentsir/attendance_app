@@ -646,6 +646,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       ),
                     ),
                   ],
+                  
                   sectionsSpace: 2,
                   centerSpaceRadius: 40,
                 ),
