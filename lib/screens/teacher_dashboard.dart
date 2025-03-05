@@ -6,6 +6,8 @@ import 'records_screen.dart'; // Import your records screen
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth for user email
 import 'login_screen.dart';
 import '../services/user_session.dart';
+import 'notification_screen.dart';
+import '../services/notification_service.dart';
 
 class TeacherDashboard extends StatefulWidget {
   final School school; // School data passed from the login screen
@@ -25,6 +27,8 @@ class TeacherDashboard extends StatefulWidget {
 class _TeacherDashboardState extends State<TeacherDashboard> {
   int _selectedIndex =
       0; // Track the selected index for the bottom navigation bar
+  final NotificationService _notificationService = NotificationService();
+  int _unreadNotifications = 0;
 
   // Define the screens corresponding to the bottom navigation bar items
   late final List<Widget> _screens;
@@ -44,11 +48,22 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         teacherId: widget.teacherId, // Add teacherId here
       ),
     ];
+    _loadUnreadNotifications();
   }
 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
+    });
+  }
+
+  void _loadUnreadNotifications() {
+    _notificationService.getUnreadCount(widget.teacherId).listen((count) {
+      if (mounted) {
+        setState(() {
+          _unreadNotifications = count;
+        });
+      }
     });
   }
 
@@ -67,7 +82,51 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        title: const Text('Teacher Dashboard'),
         actions: [
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NotificationScreen(
+                        userId: widget.teacherId,
+                        isTeacher: true,
+                        school: widget.school,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              if (_unreadNotifications > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 14,
+                      minHeight: 14,
+                    ),
+                    child: Text(
+                      _unreadNotifications.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: Icon(Icons.settings),
             onPressed: () {

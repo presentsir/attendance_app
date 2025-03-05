@@ -1,5 +1,5 @@
 name: attendance_app
-description: "A new Flutter project."
+description: 'A new Flutter project.'
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -33,15 +33,15 @@ dependencies:
   firebase_core: ^2.18.0
   dropdown_search: ^5.0.1
   shared_preferences: ^2.2.2
-  cloud_firestore: ^4.15.1
-  firebase_auth: ^4.19.1
+  cloud_firestore: ^4.15.5
+  firebase_auth: ^4.17.5
   provider: ^6.1.1
   intl: ^0.18.0
-  fl_chart: ^0.66.1  # Replacing charts_flutter with fl_chart
+  fl_chart: ^0.66.1 # Replacing charts_flutter with fl_chart
   cupertino_icons: ^1.0.8
   flutter_launcher_icons: ^0.11.0
-  http: ^1.1.0  # For AI API calls
-
+  http: ^1.1.0 # For AI API calls
+  google_generative_ai: ^0.2.0
 
 dev_dependencies:
   flutter_test:
@@ -74,11 +74,10 @@ flutter:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/icon/app_icon.png"
-
+  image_path: 'assets/icon/app_icon.png'
 
 flutter_native_splash:
-  color: "#ffffff" # Background color
+  color: '#ffffff' # Background color
   image: assets/icon/app_icon.png
   android: true
   ios: true

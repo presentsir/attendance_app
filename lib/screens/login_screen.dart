@@ -83,10 +83,11 @@ class _LoginScreenState extends State<LoginScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => StudentDashboard(
-            school: school, // Use the reconstructed school object
-            rollNo: userData['rollNo'],
-            studentName: userData['studentName'],
+            userId: userData['rollNo'],
+            studentId: userData['rollNo'],
             classId: userData['classId'],
+            school: school,
+            studentName: userData['studentName'] ?? 'Student',
           ),
         ),
       );
@@ -178,11 +179,12 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => StudentDashboard(
-              school: _selectedSchool!,
-              rollNo: _rollNoController.text.trim(),
-              studentName: studentData['name'] ?? 'Student',
+            builder: (context) => StudentDashboard(
+              userId: _rollNoController.text.trim(),
+              studentId: _rollNoController.text.trim(),
               classId: _selectedClassId!,
+              school: _selectedSchool!,
+              studentName: studentData['name'] ?? 'Student',
             ),
           ),
         );
