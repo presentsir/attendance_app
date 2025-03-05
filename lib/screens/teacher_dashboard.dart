@@ -8,6 +8,7 @@ import 'login_screen.dart';
 import '../services/user_session.dart';
 import 'notification_screen.dart';
 import '../services/notification_service.dart';
+import 'chatbot_screen.dart';
 
 class TeacherDashboard extends StatefulWidget {
   final School school; // School data passed from the login screen
@@ -149,6 +150,16 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 ),
               );
             },
+          ),
+          IconButton(
+            icon: Icon(Icons.chat),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ChatbotScreen()),
+              );
+            },
+            tooltip: 'Chat with Assistant',
           ),
         ],
       ),

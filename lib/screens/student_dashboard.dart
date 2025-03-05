@@ -7,6 +7,7 @@ import 'login_screen.dart';
 import '../services/user_session.dart';
 import 'notification_screen.dart';
 import '../services/notification_service.dart';
+import 'chatbot_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
   final String userId;
@@ -342,6 +343,16 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   ),
                 ),
             ],
+          ),
+          IconButton(
+            icon: Icon(Icons.chat),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ChatbotScreen()),
+              );
+            },
+            tooltip: 'Chat with Assistant',
           ),
         ],
       ),
