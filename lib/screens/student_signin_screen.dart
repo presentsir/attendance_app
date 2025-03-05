@@ -37,7 +37,7 @@ class _StudentSignInScreenState extends State<StudentSignInScreen> {
       final Map<String, Map<String, dynamic>> uniqueSchools = {};
 
       for (var school in jsonData) {
-        final affNo = school['affNo']?.toString() ?? '';
+        final affNo = school['aff_no']?.toString() ?? '';
         if (affNo.isNotEmpty && !uniqueSchools.containsKey(affNo)) {
           uniqueSchools[affNo] = {
             'name': school['name'] ?? 'Unknown School',
@@ -107,11 +107,33 @@ class _StudentSignInScreenState extends State<StudentSignInScreen> {
       // First, verify the school exists
       final schoolQuery = await FirebaseFirestore.instance
           .collection('schools')
-          .where('affNo', isEqualTo: _selectedSchool)
+          .where('aff_no', isEqualTo: _selectedSchool)
           .get();
 
       if (schoolQuery.docs.isEmpty) {
-        throw 'School not found';
+        // If school doesn't exist in Firestore, create it
+        // Find school data from the loaded schools
+        final selectedSchoolData = _schools.firstWhere(
+          (school) => school['affNo'] == _selectedSchool,
+          orElse: () => {'name': 'Unknown School', 'affNo': _selectedSchool},
+        );
+
+        // Create school document in Firestore
+        await FirebaseFirestore.instance.collection('schools').doc(_selectedSchool).set({
+          'name': selectedSchoolData['name'],
+          'aff_no': _selectedSchool,
+          'created_at': FieldValue.serverTimestamp(),
+        });
+
+        // Retry fetching the school
+        final retrySchoolQuery = await FirebaseFirestore.instance
+            .collection('schools')
+            .where('aff_no', isEqualTo: _selectedSchool)
+            .get();
+
+        if (retrySchoolQuery.docs.isEmpty) {
+          throw 'Failed to create school record';
+        }
       }
 
       final school = School.fromFirestore(schoolQuery.docs.first);
