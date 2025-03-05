@@ -678,74 +678,36 @@ class _RecordsScreenState extends State<RecordsScreen> {
       stream: _buildAttendanceQuery(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          if (snapshot.error.toString().contains('failed-precondition') ||
-              snapshot.error.toString().contains('requires an index')) {
-            return Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Icon(Icons.warning, color: Colors.orange, size: 48),
-                    SizedBox(height: 8),
-                    Text(
-                      'Database Setup Required',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Please create the following indexes in Firebase Console:',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    SizedBox(height: 16),
-                    Container(
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                              'Collection: attendance_records (with "a", not "e")',
-                              style: TextStyle(fontWeight: FontWeight.bold)),
-                          SizedBox(height: 8),
-                          Text('Index 1:'),
-                          Text('1. classId (Ascending)'),
-                          Text('2. date (Ascending)'),
-                          Text('3. rollNumber (Ascending)'),
-                          SizedBox(height: 8),
-                          Text('Index 2:'),
-                          Text('1. classId (Ascending)'),
-                          Text('2. date (Ascending)'),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Note: Make sure the collection name is "attendance_records" not "attendence_records"',
-                      style: TextStyle(color: Colors.red),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      icon: Icon(Icons.refresh),
-                      label: Text('Retry'),
-                      onPressed: () {
-                        setState(() {
-                          // Trigger rebuild
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
           return Center(
             child: Text('Error: ${snapshot.error}'),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return Center(child: CircularProgressIndicator());
+        }
+
+        final records = snapshot.data!.docs;
+
+        if (records.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue, size: 48),
+                  SizedBox(height: 8),
+                  Text(
+                    'No Records Found',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    'No attendance records for the selected period',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
           );
         }
 
@@ -800,28 +762,6 @@ class _RecordsScreenState extends State<RecordsScreen> {
     }
 
     final records = snapshot.data!.docs;
-
-    if (records.isEmpty) {
-      return Card(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Icon(Icons.info_outline, color: Colors.blue, size: 48),
-              SizedBox(height: 8),
-              Text(
-                'No Records Found',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                'No attendance records for the selected period',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
 
     return ListView.builder(
       shrinkWrap: true,

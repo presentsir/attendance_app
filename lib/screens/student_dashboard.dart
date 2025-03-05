@@ -219,7 +219,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Welcome, ${_studentData?['name'] ?? 'Student'}',
+              'Welcome, ${_studentData?['name'] ?? 'Student'}!',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -353,6 +353,23 @@ class _StudentDashboardState extends State<StudentDashboard> {
             _buildProfileCard(),
             SizedBox(height: 20),
             _buildAttendanceButton(),
+            SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                // TODO: Navigate to academic details screen
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content: Text('Academic Details feature coming soon!')),
+                );
+              },
+              icon: Icon(Icons.school),
+              label: Text('Academic Details'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: Size(double.infinity, 50),
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
             SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: _handleLogout,
