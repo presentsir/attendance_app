@@ -8,6 +8,7 @@ import 'login_screen.dart';
 import '../services/user_session.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'teacher_notification_screen.dart';
 
 class TeacherDashboard extends StatefulWidget {
   final School school; // School data passed from the login screen
@@ -270,6 +271,20 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               MaterialPageRoute(
                 builder: (context) => RecordsScreen(
                   teacherId: widget.teacherId,
+                ),
+              ),
+            ),
+          ),
+          _buildDashboardCard(
+            'Send Notifications',
+            Icons.notifications_active,
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TeacherNotificationScreen(
+                  teacherId: widget.teacherId,
+                  teacherName: widget.teacherName,
+                  preSelectedClassId: widget.classId.isNotEmpty ? widget.classId : null,
                 ),
               ),
             ),
