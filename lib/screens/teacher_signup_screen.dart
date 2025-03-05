@@ -7,18 +7,37 @@ import 'package:dropdown_search/dropdown_search.dart';
 import '../models/school_model.dart';
 import 'teacher_dashboard.dart';
 
-class TeacherSignInScreen extends StatefulWidget {
+class TeacherSignUpScreen extends StatefulWidget {
   @override
-  _TeacherSignInScreenState createState() => _TeacherSignInScreenState();
+  _TeacherSignUpScreenState createState() => _TeacherSignUpScreenState();
 }
 
-class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
+class _TeacherSignUpScreenState extends State<TeacherSignUpScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _subjectController = TextEditingController();
+
   bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   List<Map<String, dynamic>> _schools = [];
   String? _selectedSchool;
+  List<String> _subjects = [
+    'Mathematics',
+    'Science',
+    'English',
+    'Hindi',
+    'Social Studies',
+    'Computer Science',
+    'Physical Education',
+    'Art',
+    'Music',
+    'Other'
+  ];
 
   @override
   void initState() {
@@ -28,15 +47,14 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
 
   Future<void> _loadSchools() async {
     try {
-      print('Starting to load schools...'); // Debug print
+      print('Starting to load schools...');
       final String jsonString =
           await rootBundle.loadString('assets/data/SchoolCBSE.json');
-      print('JSON string loaded successfully'); // Debug print
+      print('JSON string loaded successfully');
 
       final List<dynamic> jsonData = json.decode(jsonString);
-      print('Loaded schools count: ${jsonData.length}'); // Debug print
+      print('Loaded schools count: ${jsonData.length}');
 
-      // Create a map to store unique schools by affNo
       final Map<String, Map<String, dynamic>> uniqueSchools = {};
 
       for (var school in jsonData) {
@@ -55,18 +73,17 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
         }
       }
 
-      print('Unique schools count: ${uniqueSchools.length}'); // Debug print
+      print('Unique schools count: ${uniqueSchools.length}');
 
       if (mounted) {
         setState(() {
           _schools = uniqueSchools.values.toList();
-          // Add a default "Select School" option
           _schools.insert(0, {'name': 'Select School', 'affNo': ''});
         });
       }
     } catch (e, stackTrace) {
-      print('Error loading schools: $e'); // Debug print
-      print('Stack trace: $stackTrace'); // Debug print stack trace
+      print('Error loading schools: $e');
+      print('Stack trace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -78,7 +95,7 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
     }
   }
 
-  Future<void> _signIn() async {
+  Future<void> _registerTeacher() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -94,25 +111,26 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
         throw 'School not found';
       }
 
-      // Sign in with Firebase Auth
+      // Create user with email and password
       final userCredential =
-          await FirebaseAuth.instance.signInWithEmailAndPassword(
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // Get teacher data
-      final teacherQuery = await FirebaseFirestore.instance
+      // Create teacher document
+      await FirebaseFirestore.instance
           .collection('teachers')
-          .where('email', isEqualTo: _emailController.text.trim())
-          .where('schoolId', isEqualTo: _selectedSchool)
-          .get();
+          .doc(userCredential.user!.uid)
+          .set({
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phoneNumber': '+91${_phoneController.text.trim()}',
+        'subject': _subjectController.text.trim(),
+        'schoolId': _selectedSchool,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
-      if (teacherQuery.docs.isEmpty) {
-        throw 'Teacher not found in this school';
-      }
-
-      final teacherData = teacherQuery.docs.first.data();
       final school = School.fromFirestore(schoolQuery.docs.first);
 
       if (!mounted) return;
@@ -122,9 +140,9 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
         MaterialPageRoute(
           builder: (context) => TeacherDashboard(
             school: school,
-            teacherId: teacherQuery.docs.first.id,
-            teacherName: teacherData['name'],
-            classId: teacherData['classId'],
+            teacherId: userCredential.user!.uid,
+            teacherName: _nameController.text.trim(),
+            classId: '', // This will be set when a class is assigned
           ),
         ),
       );
@@ -145,13 +163,12 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Get screen size
     final size = MediaQuery.of(context).size;
     final isSmallScreen = size.width < 600;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Teacher Login'),
+        title: Text('Teacher Registration'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -165,7 +182,7 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Teacher Login',
+                    'Teacher Registration',
                     style: TextStyle(
                       fontSize: isSmallScreen ? 24 : 32,
                       fontWeight: FontWeight.bold,
@@ -211,6 +228,80 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
                   ),
                   SizedBox(height: isSmallScreen ? 16 : 24),
                   TextFormField(
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: 'Teacher Name',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: isSmallScreen ? 12 : 16,
+                        vertical: isSmallScreen ? 12 : 16,
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your name';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: isSmallScreen ? 16 : 24),
+                  TextFormField(
+                    controller: _phoneController,
+                    decoration: InputDecoration(
+                      labelText: 'Contact Number',
+                      border: OutlineInputBorder(),
+                      prefixText: '+91 ',
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: isSmallScreen ? 12 : 16,
+                        vertical: isSmallScreen ? 12 : 16,
+                      ),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter contact number';
+                      }
+                      if (!RegExp(r'^\d{10}$').hasMatch(value)) {
+                        return 'Please enter a valid 10-digit number';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: isSmallScreen ? 16 : 24),
+                  DropdownButtonFormField<String>(
+                    value: _subjectController.text.isEmpty
+                        ? null
+                        : _subjectController.text,
+                    decoration: InputDecoration(
+                      labelText: 'Subject',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: isSmallScreen ? 12 : 16,
+                        vertical: isSmallScreen ? 12 : 16,
+                      ),
+                    ),
+                    items: _subjects.map((subject) {
+                      return DropdownMenuItem<String>(
+                        value: subject,
+                        child: Text(subject),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _subjectController.text = value;
+                        });
+                      }
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please select a subject';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: isSmallScreen ? 16 : 24),
+                  TextFormField(
                     controller: _emailController,
                     decoration: InputDecoration(
                       labelText: 'Email',
@@ -241,11 +332,23 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
                         horizontal: isSmallScreen ? 12 : 16,
                         vertical: isSmallScreen ? 12 : 16,
                       ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
                     ),
-                    obscureText: true,
+                    obscureText: _obscurePassword,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
+                        return 'Please enter a password';
                       }
                       if (value.length < 6) {
                         return 'Password must be at least 6 characters';
@@ -253,13 +356,47 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
                       return null;
                     },
                   ),
+                  SizedBox(height: isSmallScreen ? 16 : 24),
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm Password',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: isSmallScreen ? 12 : 16,
+                        vertical: isSmallScreen ? 12 : 16,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
+                      ),
+                    ),
+                    obscureText: _obscureConfirmPassword,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please confirm your password';
+                      }
+                      if (value != _passwordController.text) {
+                        return 'Passwords do not match';
+                      }
+                      return null;
+                    },
+                  ),
                   SizedBox(height: isSmallScreen ? 32 : 48),
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _signIn,
+                    onPressed: _isLoading ? null : _registerTeacher,
                     child: _isLoading
                         ? CircularProgressIndicator(color: Colors.white)
                         : Text(
-                            'Login',
+                            'Register',
                             style: TextStyle(
                               fontSize: isSmallScreen ? 16 : 18,
                             ),
@@ -267,19 +404,6 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
                     style: ElevatedButton.styleFrom(
                       padding: EdgeInsets.symmetric(
                         vertical: isSmallScreen ? 12 : 16,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: isSmallScreen ? 16 : 24),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/teacher_signup');
-                    },
-                    child: Text(
-                      'New Teacher? Sign Up',
-                      style: TextStyle(
-                        fontSize: isSmallScreen ? 14 : 16,
-                        color: Theme.of(context).primaryColor,
                       ),
                     ),
                   ),
@@ -294,8 +418,12 @@ class _TeacherSignInScreenState extends State<TeacherSignInScreen> {
 
   @override
   void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _subjectController.dispose();
     super.dispose();
   }
 }

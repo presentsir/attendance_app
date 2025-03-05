@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 import '../models/school_model.dart';
 import 'student_dashboard.dart';
 
@@ -28,36 +29,53 @@ class _StudentSignInScreenState extends State<StudentSignInScreen> {
 
   Future<void> _loadSchools() async {
     try {
+      print('Starting to load schools...'); // Debug print
       final String jsonString =
           await rootBundle.loadString('assets/data/SchoolCBSE.json');
+      print('JSON string loaded successfully'); // Debug print
+
       final List<dynamic> jsonData = json.decode(jsonString);
-      print('Loaded schools: ${jsonData.length}'); // Debug print
+      print('Loaded schools count: ${jsonData.length}'); // Debug print
 
       // Create a map to store unique schools by affNo
       final Map<String, Map<String, dynamic>> uniqueSchools = {};
 
       for (var school in jsonData) {
-        final affNo = school['affNo']?.toString() ?? '';
-        if (affNo.isNotEmpty && !uniqueSchools.containsKey(affNo)) {
-          uniqueSchools[affNo] = {
-            'name': school['name'] ?? 'Unknown School',
-            'affNo': affNo,
-          };
+        if (school is Map<String, dynamic>) {
+          final affNo = school['affNo']?.toString() ?? '';
+          final name = school['name']?.toString() ?? '';
+
+          if (affNo.isNotEmpty &&
+              name.isNotEmpty &&
+              !uniqueSchools.containsKey(affNo)) {
+            uniqueSchools[affNo] = {
+              'name': name,
+              'affNo': affNo,
+            };
+          }
         }
       }
 
-      setState(() {
-        _schools = uniqueSchools.values.toList();
-        print('Processed schools: ${_schools.length}'); // Debug print
-      });
-    } catch (e) {
-      print('Error loading schools: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error loading schools: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      print('Unique schools count: ${uniqueSchools.length}'); // Debug print
+
+      if (mounted) {
+        setState(() {
+          _schools = uniqueSchools.values.toList();
+          // Add a default "Select School" option
+          _schools.insert(0, {'name': 'Select School', 'affNo': ''});
+        });
+      }
+    } catch (e, stackTrace) {
+      print('Error loading schools: $e'); // Debug print
+      print('Stack trace: $stackTrace'); // Debug print stack trace
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading schools: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -190,41 +208,44 @@ class _StudentSignInScreenState extends State<StudentSignInScreen> {
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: isSmallScreen ? 32 : 48),
-                  DropdownButtonFormField<String>(
-                    value: _selectedSchool,
-                    decoration: InputDecoration(
-                      labelText: 'Select School',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: isSmallScreen ? 12 : 16,
-                        vertical: isSmallScreen ? 12 : 16,
+                  DropdownSearch<Map<String, dynamic>>(
+                    items: _schools,
+                    itemAsString: (school) =>
+                        school['name'] ?? 'Unknown School',
+                    selectedItem: _schools.firstWhere(
+                      (school) => school['affNo'] == _selectedSchool,
+                      orElse: () => _schools.first,
+                    ),
+                    onChanged: (school) {
+                      if (school != null) {
+                        setState(() {
+                          _selectedSchool = school['affNo'];
+                          _selectedClass = null;
+                          _classes = [];
+                        });
+                        _loadClasses();
+                      }
+                    },
+                    dropdownDecoratorProps: DropDownDecoratorProps(
+                      dropdownSearchDecoration: InputDecoration(
+                        labelText: 'Select School',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: isSmallScreen ? 12 : 16,
+                          vertical: isSmallScreen ? 12 : 16,
+                        ),
                       ),
                     ),
-                    items: _schools.map((school) {
-                      return DropdownMenuItem<String>(
-                        value: school['affNo'],
-                        child: Text(
-                          school['name'],
-                          style: TextStyle(
-                            fontSize: isSmallScreen ? 14 : 16,
-                          ),
+                    popupProps: PopupProps.menu(
+                      showSearchBox: true,
+                      searchFieldProps: TextFieldProps(
+                        decoration: InputDecoration(
+                          hintText: 'Search school by name',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.search),
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedSchool = value;
-                        _selectedClass = null;
-                        _classes = [];
-                      });
-                      _loadClasses();
-                    },
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please select a school';
-                      }
-                      return null;
-                    },
+                      ),
+                    ),
                   ),
                   SizedBox(height: isSmallScreen ? 16 : 24),
                   if (_selectedSchool != null)
