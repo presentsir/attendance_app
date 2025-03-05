@@ -24,7 +24,7 @@ class AttendanceChart extends StatelessWidget {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Error loading attendance data'));
+          return Center(child: Text('attendence chart'));
         }
 
         if (!snapshot.hasData) {

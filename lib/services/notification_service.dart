@@ -506,7 +506,7 @@ class NotificationService {
     });
   }
 
-  // Send attendance alert to teacher
+  // Send attendance alert to teacher and parent
   Future<void> sendAttendanceAlert({
     required String studentId,
     required String studentName,
@@ -518,10 +518,14 @@ class NotificationService {
     String title;
     String description;
 
-    if (attendancePercentage < 75) {
+    if (attendancePercentage < 60) {
       title = 'Low Attendance Alert';
       description =
-          '$studentName has low attendance ($attendancePercentage%). Please check.';
+          '$studentName has critically low attendance ($attendancePercentage%). Please take immediate action.';
+    } else if (attendancePercentage < 75) {
+      title = 'Attendance Warning';
+      description =
+          '$studentName has low attendance ($attendancePercentage%). Please monitor.';
     } else if (attendancePercentage > 90) {
       title = 'Excellent Attendance';
       description =
@@ -531,6 +535,7 @@ class NotificationService {
       description = '$studentName has $attendancePercentage% attendance.';
     }
 
+    // Send to student
     await sendNotification(
       title: title,
       description: description,
@@ -540,6 +545,38 @@ class NotificationService {
       recipientId: studentId,
       type: NotificationType.attendanceAlert,
     );
+
+    // Get student's parent mobile number
+    final studentDoc = await _firestore
+        .collection('classes')
+        .doc(classId)
+        .collection('students')
+        .doc(studentId)
+        .get();
+
+    if (studentDoc.exists) {
+      final studentData = studentDoc.data() as Map<String, dynamic>;
+      final parentMobile = studentData['mobileNumber'] as String?;
+
+      if (parentMobile != null) {
+        // Create a parent notification
+        final parentNotification = {
+          'title': title,
+          'description': description,
+          'senderId': 'system',
+          'senderName': 'System',
+          'classId': classId,
+          'recipientId': studentId,
+          'type': NotificationType.attendanceAlert.toString(),
+          'createdAt': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'isParentNotification': true,
+          'parentMobile': parentMobile,
+        };
+
+        await _firestore.collection('notifications').add(parentNotification);
+      }
+    }
   }
 
   // Send daily motivational message to student

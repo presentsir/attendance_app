@@ -38,7 +38,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
   void initState() {
     super.initState();
     if (widget.children.isNotEmpty) {
+      print('Initializing with ${widget.children.length} children');
       _selectedChild = widget.children.first;
+      print('Selected child initial data:');
+      print('- Name: ${_selectedChild!['name']}');
+      print('- Class ID: ${_selectedChild!['classId']}');
+      print('- ID: ${_selectedChild!['id']}');
       _loadChildData();
     }
   }
@@ -47,6 +52,42 @@ class _ParentDashboardState extends State<ParentDashboard> {
     if (_selectedChild == null) return;
 
     try {
+      print('Loading data for child: ${_selectedChild!['name']}');
+
+      // First, get the complete student data
+      final studentDoc = await _firestore
+          .collection('classes')
+          .doc(_selectedChild!['classId'])
+          .collection('students')
+          .doc(_selectedChild!['id'])
+          .get();
+
+      if (!studentDoc.exists) {
+        print('Student document not found');
+        return;
+      }
+
+      final studentData = studentDoc.data();
+      if (studentData == null) {
+        print('Student data is null');
+        return;
+      }
+
+      // Update selected child with complete data
+      setState(() {
+        _selectedChild = {
+          ..._selectedChild!,
+          'rollNumber': studentData['rollNumber'],
+          'name': studentData['name'],
+          'classId': _selectedChild!['classId'],
+        };
+      });
+
+      print('Updated child data:');
+      print('- Name: ${_selectedChild!['name']}');
+      print('- Roll Number: ${_selectedChild!['rollNumber']}');
+      print('- Class ID: ${_selectedChild!['classId']}');
+
       // Get class data
       final classDoc = await _firestore
           .collection('classes')
@@ -170,7 +211,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
             ),
             SizedBox(height: 8),
             DropdownButtonFormField<Map<String, dynamic>>(
-              value: _selectedChild,
+              value: widget.children.firstWhere(
+                (child) => child['id'] == _selectedChild?['id'],
+                orElse: () => widget.children.first,
+              ),
               items: widget.children.map((child) {
                 return DropdownMenuItem(
                   value: child,
@@ -260,10 +304,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 ),
               )
             else
-              Center(
-                child: Text(
-                  'Attendance data not available',
-                  style: TextStyle(color: Colors.grey),
+              SizedBox(
+                height: 200,
+                child: Center(
+                  child: CircularProgressIndicator(),
                 ),
               ),
           ],
@@ -298,17 +342,28 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   Stream<List<NotificationModel>> _getNotificationsStream() {
     if (_selectedChild == null) {
+      print('No child selected');
       return Stream.value([]);
     }
 
+    // Get the child's data
     final rollNumber = _selectedChild!['rollNumber'] as String?;
     final classId = _selectedChild!['classId'] as String?;
+    final parentMobile = widget.mobileNumber;
 
     if (rollNumber == null || classId == null) {
-      print('Error: Missing required data for notifications');
+      print('Missing child data: rollNumber=$rollNumber, classId=$classId');
       return Stream.value([]);
     }
 
+    print('Getting notifications for:');
+    print('- Roll Number: $rollNumber');
+    print('- Class ID: $classId');
+    print('- Parent Mobile: $parentMobile');
+
+    // For parents, we want to show:
+    // 1. Notifications sent to their child
+    // 2. Parent-specific notifications
     return _notificationService.getNotifications(
       userId: rollNumber,
       classId: classId,
