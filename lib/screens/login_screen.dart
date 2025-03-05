@@ -547,6 +547,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       minimumSize: Size(double.infinity, 50),
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
+                      
                     ),
                     child: Text(
                       'Login',
