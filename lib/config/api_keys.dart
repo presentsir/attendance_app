@@ -1,7 +1,9 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class ApiKeys {
   // Replace this with your Gemini API key when you get one
-  static const String geminiApiKey = 'AIzaSyAorUVGsJpG2l8mA7m-1FDPtFqtH7d2LJA';
+  static String get geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
   // Replace this with your Hugging Face API key
-  static const String huggingFaceApiKey =
-      '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';
+  static String get huggingFaceApiKey =>
+      dotenv.env['HUGGING_FACE_API_KEY'] ?? '';
 }
