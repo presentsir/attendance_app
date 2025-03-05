@@ -28357,6 +28357,7 @@
         "region":"AJMER",
         "address":"231, BAJPAI COLONY, GOPAL VIHAR, DISTT JABALPUR, MADHYA PRADESH",
         "pincode":482002.0
+<<<<<<< HEAD
     },
     {
         "name":"DELHI PUBLIC SCHOOL BASUARA",
@@ -42551,5 +42552,8 @@
         "region":"TRIVANDRUM",
         "address":"NEMMARA NSS COLLEGE POST NEMMARA PALAKKAD DISTT KERALA",
         "pincode":"678508"
+=======
+>>>>>>> e42f41e74b2c950eca4c5bb8cfd1eada9e8fa893
     }
+
 ]

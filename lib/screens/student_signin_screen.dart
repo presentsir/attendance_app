@@ -29,20 +29,19 @@ class _StudentSignInScreenState extends State<StudentSignInScreen> {
 
   Future<void> _loadSchools() async {
     try {
-      print('Starting to load schools...'); // Debug print
+      print('Starting to load schools...');
       final String jsonString =
           await rootBundle.loadString('assets/data/SchoolCBSE.json');
-      print('JSON string loaded successfully'); // Debug print
+      print('JSON string loaded successfully');
 
       final List<dynamic> jsonData = json.decode(jsonString);
-      print('Loaded schools count: ${jsonData.length}'); // Debug print
+      print('Loaded schools count: ${jsonData.length}');
 
-      // Create a map to store unique schools by affNo
       final Map<String, Map<String, dynamic>> uniqueSchools = {};
 
       for (var school in jsonData) {
         if (school is Map<String, dynamic>) {
-          final affNo = school['affNo']?.toString() ?? '';
+          final affNo = school['aff_no']?.toString() ?? '';
           final name = school['name']?.toString() ?? '';
 
           if (affNo.isNotEmpty &&
@@ -56,18 +55,17 @@ class _StudentSignInScreenState extends State<StudentSignInScreen> {
         }
       }
 
-      print('Unique schools count: ${uniqueSchools.length}'); // Debug print
+      print('Unique schools count: ${uniqueSchools.length}');
 
       if (mounted) {
         setState(() {
           _schools = uniqueSchools.values.toList();
-          // Add a default "Select School" option
           _schools.insert(0, {'name': 'Select School', 'affNo': ''});
         });
       }
     } catch (e, stackTrace) {
-      print('Error loading schools: $e'); // Debug print
-      print('Stack trace: $stackTrace'); // Debug print stack trace
+      print('Error loading schools: $e');
+      print('Stack trace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -125,11 +123,35 @@ class _StudentSignInScreenState extends State<StudentSignInScreen> {
       // First, verify the school exists
       final schoolQuery = await FirebaseFirestore.instance
           .collection('schools')
-          .where('affNo', isEqualTo: _selectedSchool)
+          .where('aff_no', isEqualTo: _selectedSchool)
           .get();
 
       if (schoolQuery.docs.isEmpty) {
-        throw 'School not found';
+        // If school doesn't exist in Firestore, create it
+        final selectedSchoolData = _schools.firstWhere(
+          (school) => school['affNo'] == _selectedSchool,
+          orElse: () => {'name': 'Unknown School', 'affNo': _selectedSchool},
+        );
+
+        // Create school document in Firestore
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(_selectedSchool)
+            .set({
+          'name': selectedSchoolData['name'],
+          'aff_no': _selectedSchool,
+          'created_at': FieldValue.serverTimestamp(),
+        });
+
+        // Retry fetching the school
+        final retrySchoolQuery = await FirebaseFirestore.instance
+            .collection('schools')
+            .where('aff_no', isEqualTo: _selectedSchool)
+            .get();
+
+        if (retrySchoolQuery.docs.isEmpty) {
+          throw 'Failed to create school record';
+        }
       }
 
       final school = School.fromFirestore(schoolQuery.docs.first);
@@ -180,7 +202,6 @@ class _StudentSignInScreenState extends State<StudentSignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Get screen size
     final size = MediaQuery.of(context).size;
     final isSmallScreen = size.width < 600;
 

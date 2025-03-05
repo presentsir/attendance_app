@@ -9,6 +9,7 @@ class JsonService {
       final List<dynamic> data = json.decode(response);
       return data.map((json) => School.fromJson(json)).toList();
     } catch (e) {
+      print('Error loading schools in JsonService: $e');
       return [];
     }
   }
