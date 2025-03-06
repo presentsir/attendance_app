@@ -665,16 +665,45 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
   }
 
   Future<void> _saveStudents() async {
+    setState(() => _isLoading = true);
+
     try {
       // Validation
       for (var student in _students) {
-        if (student.nameController.text.isEmpty ||
-            student.mobileController.text.isEmpty) {
+        if (student.nameController.text.trim().isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content: Text(
-                    'Please fill name and mobile number for roll number ${student.rollNumber}')),
+              content: Text(
+                  'Please enter name for roll number ${student.rollNumber}'),
+              backgroundColor: Colors.red,
+            ),
           );
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        if (student.mobileController.text.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Please enter mobile number for roll number ${student.rollNumber}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        if (!RegExp(r'^[0-9]{10}$')
+            .hasMatch(student.mobileController.text.trim())) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Please enter a valid 10-digit mobile number for roll number ${student.rollNumber}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() => _isLoading = false);
           return;
         }
 
@@ -685,9 +714,12 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
             (percentage == null || percentage < 0 || percentage > 100)) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content: Text(
-                    'Invalid percentage for roll number ${student.rollNumber}')),
+              content: Text(
+                  'Invalid percentage for roll number ${student.rollNumber}'),
+              backgroundColor: Colors.red,
+            ),
           );
+          setState(() => _isLoading = false);
           return;
         }
 
@@ -696,9 +728,12 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
             double.tryParse(student.familyIncomeController.text) == null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content: Text(
-                    'Invalid family income for roll number ${student.rollNumber}')),
+              content: Text(
+                  'Invalid family income for roll number ${student.rollNumber}'),
+              backgroundColor: Colors.red,
+            ),
           );
+          setState(() => _isLoading = false);
           return;
         }
       }
@@ -721,26 +756,35 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
               .doc();
         }
 
-        batch.set(docRef, {
+        final studentData = {
           'rollNumber': student.rollNumber,
-          'name': student.nameController.text,
-          'mobileNumber': student.mobileController.text,
+          'name': student.nameController.text.trim(),
+          'mobileNumber': student.mobileController.text.trim(),
           'gender': student.gender,
           'familyStructure': student.familyStructure,
           'parentEducation': student.parentEducation,
           'residentialArea': student.residentialArea,
           'academicTrend': student.academicTrend,
-          'lastYearGrade': student.lastYearGradeController.text.isNotEmpty
+          'lastYearMarks': student.lastYearGradeController.text.isNotEmpty
               ? double.parse(student.lastYearGradeController.text)
-              : null,
+              : 0.0,
           'familyIncome': student.familyIncomeController.text.isNotEmpty
               ? double.parse(student.familyIncomeController.text)
-              : null,
+              : 0.0,
+          'createdAt': FieldValue.serverTimestamp(),
           'lastUpdated': FieldValue.serverTimestamp(),
-        });
+        };
+
+        batch.set(docRef, studentData);
       }
 
       await batch.commit();
+
+      // Update total students count
+      await _firestore.collection('classes').doc(widget.classId).update({
+        'totalStudents': _students.length,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -751,12 +795,15 @@ class _BulkStudentUploadState extends State<BulkStudentUpload> {
 
       Navigator.pop(context);
     } catch (e) {
+      print('Error saving students: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error saving students: $e'),
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 

@@ -8,6 +8,10 @@ import 'login_screen.dart';
 import '../services/user_session.dart';
 import 'notification_screen.dart';
 import '../services/notification_service.dart';
+import 'test_results_screen.dart';
+import 'student_details_screen.dart';
+import 'bulk_student_upload.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TeacherDashboard extends StatefulWidget {
   final School school; // School data passed from the login screen
@@ -42,6 +46,12 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     _screens = [
       AttendanceScreen(teacherId: widget.teacherId), // Pass teacherId
       RecordsScreen(teacherId: widget.teacherId), // Pass teacherId
+      TestResultsScreen(
+        teacherId: widget.teacherId,
+        classId: widget.classId,
+        className:
+            widget.classId, // You might want to pass the actual class name
+      ),
       ProfileScreen(
         school: widget.school,
         userEmail: widget.teacherName,
@@ -80,6 +90,84 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       MaterialPageRoute(builder: (context) => LoginScreen()),
       (route) => false,
     );
+  }
+
+  void _showClassOptions(
+      BuildContext context, String classId, String className) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Class Options',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 16),
+            ListTile(
+              leading: Icon(Icons.people),
+              title: Text('View Students'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => StudentDetailsScreen(
+                      classId: classId,
+                      className: className,
+                    ),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.upload_file),
+              title: Text('Bulk Upload'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BulkStudentUpload(
+                      classId: classId,
+                    ),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete, color: Colors.red),
+              title: Text('Delete Class', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteClass(context, classId);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteClass(BuildContext context, String classId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('classes')
+          .doc(classId)
+          .delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Class deleted successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting class: $e')),
+      );
+    }
   }
 
   @override
@@ -159,6 +247,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
             icon: Icon(Icons.check_circle_outline),
@@ -167,6 +256,10 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           BottomNavigationBarItem(
             icon: Icon(Icons.history),
             label: 'Records',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.grade),
+            label: 'Test Results',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),

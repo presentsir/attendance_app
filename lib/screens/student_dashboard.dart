@@ -7,6 +7,7 @@ import 'login_screen.dart';
 import '../services/user_session.dart';
 import 'notification_screen.dart';
 import '../services/notification_service.dart';
+import 'student_academic_details_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
   final String userId;
@@ -356,10 +357,15 @@ class _StudentDashboardState extends State<StudentDashboard> {
             SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: () {
-                // TODO: Navigate to academic details screen
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text('Academic Details feature coming soon!')),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => StudentAcademicDetailsScreen(
+                      studentId: widget.studentId,
+                      classId: widget.classId,
+                      studentName: widget.studentName,
+                    ),
+                  ),
                 );
               },
               icon: Icon(Icons.school),
