@@ -7,7 +7,6 @@ class AttendanceScreen extends StatefulWidget {
   final String teacherId;
 
   AttendanceScreen({required this.teacherId});
-  
 
   @override
   _AttendanceScreenState createState() => _AttendanceScreenState();
@@ -90,37 +89,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           }
 
           if (snapshot.hasError) {
-            print('Error details: ${snapshot.error}');
-            if (snapshot.error.toString().contains('failed-precondition') ||
-                snapshot.error.toString().contains('requires an index')) {
-              return Card(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Icon(Icons.build, color: Colors.orange),
-                      SizedBox(height: 8),
-                      Text(
-                        'Database Setup Required',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        'Please create the required index in Firebase Console:',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        '1. Go to Firebase Console\n2. Select Firestore Database\n3. Go to Indexes tab\n4. Add Index for "classes" collection:\n   - teacherId (Ascending)\n   - name (Ascending)',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      SizedBox(height: 8),
-                      CircularProgressIndicator(),
-                    ],
-                  ),
-                ),
-              );
-            }
             return Center(
               child: Text('Error: ${snapshot.error}'),
             );
