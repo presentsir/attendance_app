@@ -12,6 +12,8 @@ import 'test_results_screen.dart';
 import 'student_details_screen.dart';
 import 'bulk_student_upload.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../theme/app_theme.dart';
+import 'scan_dropout_risk_screen.dart';
 
 class TeacherDashboard extends StatefulWidget {
   final School school; // School data passed from the login screen
@@ -96,22 +98,62 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       BuildContext context, String classId, String className) {
     showModalBottomSheet(
       context: context,
+      backgroundColor: AppTheme.surfaceColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => Container(
         padding: EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppTheme.neonOrange,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Text(
               'Class Options',
               style: TextStyle(
-                fontSize: 20,
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
+                color: AppTheme.textColor,
               ),
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 24),
             ListTile(
-              leading: Icon(Icons.people),
-              title: Text('View Students'),
+              leading: Icon(Icons.upload_file, color: AppTheme.neonOrange),
+              title: Text('Bulk Upload',
+                  style: TextStyle(color: AppTheme.textColor)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BulkStudentUpload(
+                      classId: classId,
+                    ),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.edit, color: AppTheme.neonGreen),
+              title: Text('Modify Class',
+                  style: TextStyle(color: AppTheme.textColor)),
+              onTap: () {
+                Navigator.pop(context);
+                _showModifyClassDialog(context, classId, className);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.people, color: AppTheme.neonBlue),
+              title: Text('Student Details',
+                  style: TextStyle(color: AppTheme.textColor)),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -126,15 +168,17 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               },
             ),
             ListTile(
-              leading: Icon(Icons.upload_file),
-              title: Text('Bulk Upload'),
+              leading: Icon(Icons.analytics, color: AppTheme.neonGreen),
+              title: Text('WOP feature',
+                  style: TextStyle(color: AppTheme.textColor)),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => BulkStudentUpload(
+                    builder: (context) => ScanDropoutRiskScreen(
                       classId: classId,
+                      className: className,
                     ),
                   ),
                 );
@@ -150,6 +194,81 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showModifyClassDialog(
+      BuildContext context, String classId, String className) {
+    final nameController = TextEditingController(text: className);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: Text('Modify Class Details',
+            style: TextStyle(color: AppTheme.textColor)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              style: TextStyle(color: AppTheme.textColor),
+              decoration: InputDecoration(
+                labelText: 'Class Name',
+                labelStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppTheme.neonOrange),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppTheme.secondaryTextColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppTheme.neonOrange),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: AppTheme.neonBlue)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await FirebaseFirestore.instance
+                    .collection('classes')
+                    .doc(classId)
+                    .update({
+                  'name': nameController.text,
+                  'lastUpdated': FieldValue.serverTimestamp(),
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Class details updated successfully',
+                        style: TextStyle(color: AppTheme.textColor)),
+                    backgroundColor: AppTheme.surfaceColor,
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error updating class details: $e',
+                        style: TextStyle(color: AppTheme.textColor)),
+                    backgroundColor: AppTheme.surfaceColor,
+                  ),
+                );
+              }
+            },
+            child: Text('Save'),
+          ),
+        ],
       ),
     );
   }

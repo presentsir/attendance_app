@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../theme/app_theme.dart';
 import '../services/dropout_risk_service.dart';
 
 class StudentDetailsScreen extends StatelessWidget {
@@ -21,7 +22,7 @@ class StudentDetailsScreen extends StatelessWidget {
       case 'low':
         return Colors.green;
       default:
-        return Colors.grey;
+        return AppTheme.secondaryTextColor;
     }
   }
 
@@ -30,8 +31,8 @@ class StudentDetailsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Student Details - $className'),
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
+        backgroundColor: AppTheme.surfaceColor,
+        elevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -44,23 +45,41 @@ class StudentDetailsScreen extends StatelessWidget {
           if (snapshot.hasError) {
             return Center(
               child: Text(
-                'Error loading student details',
+                'Error: ${snapshot.error}',
                 style: TextStyle(color: Colors.red),
               ),
             );
           }
 
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            return Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.neonOrange),
+              ),
+            );
           }
 
           final students = snapshot.data?.docs ?? [];
 
           if (students.isEmpty) {
             return Center(
-              child: Text(
-                'No students found in this class',
-                style: TextStyle(color: Colors.grey[600]),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.people_outline,
+                    size: 64,
+                    color: AppTheme.secondaryTextColor,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'No students found',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: AppTheme.secondaryTextColor,
+                    ),
+                  ),
+                ],
               ),
             );
           }
@@ -83,51 +102,32 @@ class StudentDetailsScreen extends StatelessWidget {
               });
 
               final riskLevel = riskAnalysis['riskLevel'] as String;
-              final riskScore = riskAnalysis['riskScore'] as double;
-              final riskFactors = riskAnalysis['riskFactors'] as List<String>;
-              final recommendations =
-                  riskAnalysis['recommendations'] as List<String>;
+              final riskColor = _getRiskColor(riskLevel);
 
               return Card(
-                elevation: 2,
                 margin: EdgeInsets.only(bottom: 16),
                 child: ExpansionTile(
                   title: Row(
                     children: [
-                      CircleAvatar(
-                        backgroundColor: Colors.grey[200],
-                        child: Text(
-                          data['rollNumber']?.toString() ?? 'N/A',
-                          style: TextStyle(color: Colors.black),
+                      Text(
+                        '${data['rollNumber'] ?? 'N/A'}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.neonOrange,
                         ),
                       ),
-                      SizedBox(width: 16),
+                      SizedBox(width: 8),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              data['name']?.toString() ?? 'N/A',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            Text(
-                              'Roll No: ${data['rollNumber']?.toString() ?? 'N/A'}',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          data['name'] ?? 'Unknown',
+                          style: TextStyle(color: AppTheme.textColor),
                         ),
                       ),
                       Container(
                         padding:
                             EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _getRiskColor(riskLevel).withOpacity(0.1),
+                          color: riskColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
@@ -136,13 +136,13 @@ class StudentDetailsScreen extends StatelessWidget {
                             Icon(
                               Icons.warning_amber_rounded,
                               size: 16,
-                              color: _getRiskColor(riskLevel),
+                              color: riskColor,
                             ),
                             SizedBox(width: 4),
                             Text(
                               riskLevel,
                               style: TextStyle(
-                                color: _getRiskColor(riskLevel),
+                                color: riskColor,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                               ),
@@ -151,6 +151,16 @@ class StudentDetailsScreen extends StatelessWidget {
                         ),
                       ),
                     ],
+                  ),
+                  leading: CircleAvatar(
+                    backgroundColor: AppTheme.neonBlue.withOpacity(0.1),
+                    child: Text(
+                      data['name']?[0] ?? '?',
+                      style: TextStyle(
+                        color: AppTheme.neonBlue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   children: [
                     Padding(
@@ -163,40 +173,50 @@ class StudentDetailsScreen extends StatelessWidget {
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
-                              color: Colors.black87,
+                              color: AppTheme.textColor,
                             ),
                           ),
                           SizedBox(height: 8),
                           _buildDetailRow('Risk Score',
-                              '${(riskScore * 100).toStringAsFixed(1)}%'),
+                              '${((riskAnalysis['riskScore'] as double) * 100).toStringAsFixed(1)}%'),
                           _buildDetailRow('Risk Level', riskLevel),
-                          if (riskFactors.isNotEmpty) ...[
+                          if ((riskAnalysis['riskFactors'] as List<String>)
+                              .isNotEmpty) ...[
                             SizedBox(height: 8),
                             Text(
                               'Risk Factors:',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: Colors.grey[700],
+                                color: AppTheme.secondaryTextColor,
                               ),
                             ),
-                            ...riskFactors.map((factor) => Padding(
-                                  padding: EdgeInsets.only(left: 16, top: 4),
-                                  child: Text('• $factor'),
-                                )),
+                            ...(riskAnalysis['riskFactors'] as List<String>)
+                                .map((factor) => Padding(
+                                      padding:
+                                          EdgeInsets.only(left: 16, top: 4),
+                                      child: Text('• $factor',
+                                          style: TextStyle(
+                                              color: AppTheme.textColor)),
+                                    )),
                           ],
-                          if (recommendations.isNotEmpty) ...[
+                          if ((riskAnalysis['recommendations'] as List<String>)
+                              .isNotEmpty) ...[
                             SizedBox(height: 16),
                             Text(
                               'Recommendations:',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: Colors.grey[700],
+                                color: AppTheme.secondaryTextColor,
                               ),
                             ),
-                            ...recommendations.map((rec) => Padding(
-                                  padding: EdgeInsets.only(left: 16, top: 4),
-                                  child: Text('• $rec'),
-                                )),
+                            ...(riskAnalysis['recommendations'] as List<String>)
+                                .map((rec) => Padding(
+                                      padding:
+                                          EdgeInsets.only(left: 16, top: 4),
+                                      child: Text('• $rec',
+                                          style: TextStyle(
+                                              color: AppTheme.textColor)),
+                                    )),
                           ],
                           Divider(height: 32),
                           Text(
@@ -204,26 +224,25 @@ class StudentDetailsScreen extends StatelessWidget {
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
-                              color: Colors.black87,
+                              color: AppTheme.textColor,
                             ),
                           ),
                           SizedBox(height: 8),
-                          _buildDetailRow('Mobile Number',
-                              data['mobileNumber']?.toString() ?? 'N/A'),
                           _buildDetailRow(
-                              'Gender', data['gender']?.toString() ?? 'N/A'),
+                              'Mobile Number', data['mobileNumber'] ?? 'N/A'),
+                          _buildDetailRow('Gender', data['gender'] ?? 'N/A'),
                           _buildDetailRow('Family Structure',
-                              data['familyStructure']?.toString() ?? 'N/A'),
+                              data['familyStructure'] ?? 'N/A'),
                           _buildDetailRow('Parent Education',
-                              data['parentEducation']?.toString() ?? 'N/A'),
+                              data['parentEducation'] ?? 'N/A'),
                           _buildDetailRow('Residential Area',
-                              data['residentialArea']?.toString() ?? 'N/A'),
+                              data['residentialArea'] ?? 'N/A'),
                           _buildDetailRow('Last Year Marks',
-                              '${data['lastYearMarks']?.toString() ?? 'N/A'}%'),
+                              '${data['lastYearMarks'] ?? 'N/A'}%'),
                           _buildDetailRow('Family Income',
-                              '₹${data['familyIncome']?.toString() ?? 'N/A'}'),
-                          _buildDetailRow('Academic Trend',
-                              data['academicTrend']?.toString() ?? 'N/A'),
+                              '₹${data['familyIncome'] ?? 'N/A'}'),
+                          _buildDetailRow(
+                              'Academic Trend', data['academicTrend'] ?? 'N/A'),
                         ],
                       ),
                     ),
@@ -239,7 +258,7 @@ class StudentDetailsScreen extends StatelessWidget {
 
   Widget _buildDetailRow(String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -248,17 +267,15 @@ class StudentDetailsScreen extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
+                color: AppTheme.secondaryTextColor,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                color: Colors.black87,
-              ),
+              style: TextStyle(color: AppTheme.textColor),
             ),
           ),
         ],
