@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/login_screen.dart';
 import 'firebase_options.dart';
-import 'services/notification_background_service.dart';
 import 'package:provider/provider.dart';
 import 'services/theme_service.dart';
 import 'theme/app_theme.dart';
@@ -17,9 +16,6 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
-  // Initialize notification background service
-  NotificationBackgroundService().start();
 
   runApp(MyApp());
 }
