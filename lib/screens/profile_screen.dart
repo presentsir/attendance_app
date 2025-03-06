@@ -5,6 +5,8 @@ import 'bulk_student_upload.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
 import '../services/user_session.dart';
+import 'dropout_risk_screen.dart';
+import 'student_details_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final School school;
@@ -65,21 +67,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return sortedStudents;
   }
 
-  void _showClassOptionsMenu(BuildContext context, DocumentSnapshot classData) {
+  void _showClassOptions(
+      BuildContext context, String classId, String className) {
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
-      ),
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: Icon(Icons.upload_file),
-            title: Text('Bulk Upload Students'),
+            leading: Icon(Icons.delete),
+            title: Text('Delete Class'),
             onTap: () {
               Navigator.pop(context);
-              _navigateToBulkUpload(classData.id);
+              _deleteClass(classId);
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.upload_file),
+            title: Text('Bulk Upload'),
+            onTap: () {
+              Navigator.pop(context);
+              _navigateToBulkUpload(classId);
             },
           ),
           ListTile(
@@ -87,110 +95,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: Text('Modify Class Details'),
             onTap: () {
               Navigator.pop(context);
-              _showModifyClassDialog(classData);
+              // Implement modify class details functionality
             },
           ),
           ListTile(
-            leading: Icon(Icons.delete, color: Colors.red),
-            title: Text('Delete Class', style: TextStyle(color: Colors.red)),
+            leading: Icon(Icons.warning_amber_rounded),
+            title: Text('Scan Dropout Risk'),
             onTap: () {
               Navigator.pop(context);
-              _showDeleteConfirmation(classData);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DropoutRiskScreen(
+                    classId: classId,
+                    className: className,
+                    teacherId: widget.teacherId,
+                  ),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.person_outline),
+            title: Text('Student Details'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => StudentDetailsScreen(
+                    classId: classId,
+                    className: className,
+                  ),
+                ),
+              );
             },
           ),
         ],
       ),
     );
-  }
-
-  void _showModifyClassDialog(DocumentSnapshot classData) async {
-    final studentsSnapshot = await _firestore
-        .collection('classes')
-        .doc(classData.id)
-        .collection('students')
-        .get();
-
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Modify ${classData['name']}'),
-        content: Container(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              Text('Students:', style: TextStyle(fontWeight: FontWeight.bold)),
-              SizedBox(height: 10),
-              ...studentsSnapshot.docs.map((student) => ListTile(
-                    title: Text(student['name']),
-                    subtitle: Text('Roll: ${student['rollNumber']}'),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteStudent(
-                          classData.id, student.id, student['name']),
-                    ),
-                  )),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _deleteStudent(
-      String classId, String studentId, String studentName) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete Student'),
-        content: Text('Are you sure you want to delete $studentName?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        await _firestore
-            .collection('classes')
-            .doc(classId)
-            .collection('students')
-            .doc(studentId)
-            .delete();
-
-        // Remove from cache
-        _studentsCache[classId]?.removeWhere((doc) => doc.id == studentId);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Student deleted successfully')),
-        );
-
-        // Refresh the modify dialog
-        Navigator.pop(context);
-        _showModifyClassDialog(
-            await _firestore.collection('classes').doc(classId).get());
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting student: $e')),
-        );
-      }
-    }
   }
 
   Widget _buildStudentsList(DocumentSnapshot classData) {
@@ -659,8 +602,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               children: [
                                 IconButton(
                                   icon: Icon(Icons.more_vert),
-                                  onPressed: () =>
-                                      _showClassOptionsMenu(context, classData),
+                                  onPressed: () => _showClassOptions(
+                                      context, classData.id, classData['name']),
                                 ),
                                 IconButton(
                                   icon: Icon(
@@ -895,6 +838,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       } finally {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _deleteClass(String classId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Class'),
+        content: Text(
+            'Are you sure you want to delete this class? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('classes')
+            .doc(classId)
+            .delete();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Class deleted successfully')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting class: $e')),
+        );
       }
     }
   }

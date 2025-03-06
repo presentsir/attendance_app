@@ -7,6 +7,7 @@ import 'login_screen.dart';
 import '../services/user_session.dart';
 import 'notification_screen.dart';
 import '../services/notification_service.dart';
+import 'student_academic_details_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
   final String userId;
@@ -219,7 +220,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Welcome, ${_studentData?['name'] ?? 'Student'}',
+              'Welcome, ${_studentData?['name'] ?? 'Student'}!',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -353,6 +354,28 @@ class _StudentDashboardState extends State<StudentDashboard> {
             _buildProfileCard(),
             SizedBox(height: 20),
             _buildAttendanceButton(),
+            SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => StudentAcademicDetailsScreen(
+                      studentId: widget.studentId,
+                      classId: widget.classId,
+                      studentName: widget.studentName,
+                    ),
+                  ),
+                );
+              },
+              icon: Icon(Icons.school),
+              label: Text('Academic Details'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: Size(double.infinity, 50),
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
             SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: _handleLogout,

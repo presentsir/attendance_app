@@ -46,7 +46,8 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
       // Initialize temporary attendance map with existing records
       _tempAttendance.clear();
       for (var doc in attendanceSnapshot.docs) {
-        _tempAttendance[doc['rollNumber'].toString()] = doc['status'] == 'present';
+        _tempAttendance[doc['rollNumber'].toString()] =
+            doc['status'] == 'present';
       }
 
       // Load students
@@ -61,10 +62,9 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
         final data = doc.data();
         final rollNumber = data['rollNumber'].toString();
 
-        // If there's an existing attendance record, use it
-        // Otherwise, check if any attendance exists for the class
+        // If there's no existing attendance record for this student, mark them as absent
         if (!_tempAttendance.containsKey(rollNumber)) {
-          _tempAttendance[rollNumber] = attendanceSnapshot.docs.isNotEmpty;
+          _tempAttendance[rollNumber] = false;
         }
 
         return {
@@ -123,18 +123,24 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
       final batch = _firestore.batch();
 
       for (var student in _students) {
-        final String docId = '${widget.classId}_${dateStr}_${student['rollNumber']}';
+        final String docId =
+            '${widget.classId}_${dateStr}_${student['rollNumber']}';
         final docRef = _firestore.collection('attendance_records').doc(docId);
 
-        batch.set(docRef, {
-          'classId': widget.classId,
-          'date': Timestamp.fromDate(widget.date),
-          'rollNumber': student['rollNumber'],
-          'studentName': student['name'],
-          'status': _tempAttendance[student['rollNumber']] == true ? 'present' : 'absent',
-          'teacherId': widget.teacherId,
-          'lastUpdated': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        batch.set(
+            docRef,
+            {
+              'classId': widget.classId,
+              'date': Timestamp.fromDate(widget.date),
+              'rollNumber': student['rollNumber'],
+              'studentName': student['name'],
+              'status': _tempAttendance[student['rollNumber']] == true
+                  ? 'present'
+                  : 'absent',
+              'teacherId': widget.teacherId,
+              'lastUpdated': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true));
       }
 
       await batch.commit();
@@ -171,7 +177,8 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Unsaved Changes'),
-        content: Text('You have unsaved changes. Do you want to save them before leaving?'),
+        content: Text(
+            'You have unsaved changes. Do you want to save them before leaving?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -252,13 +259,16 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
                       itemCount: _students.length,
                       itemBuilder: (context, index) {
                         final student = _students[index];
-                        final isPresent = _tempAttendance[student['rollNumber']] ?? false;
+                        final isPresent =
+                            _tempAttendance[student['rollNumber']] ?? false;
 
                         return Card(
-                          margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          margin:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: isPresent ? Colors.green : Colors.red,
+                              backgroundColor:
+                                  isPresent ? Colors.green : Colors.red,
                               child: Text(
                                 student['rollNumber'],
                                 style: TextStyle(color: Colors.white),
@@ -272,7 +282,8 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
                               value: isPresent,
                               onChanged: _isSaving
                                   ? null
-                                  : (_) => _toggleAttendance(student['rollNumber']),
+                                  : (_) =>
+                                      _toggleAttendance(student['rollNumber']),
                               activeColor: Colors.green,
                               inactiveThumbColor: Colors.red,
                             ),
@@ -298,13 +309,15 @@ class _EditAttendanceScreenState extends State<EditAttendanceScreen> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
                           : Icon(Icons.save),
                       label: Text(_isSaving ? 'Saving...' : 'Save Attendance'),
                       style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                       ),
                     ),
                   ],

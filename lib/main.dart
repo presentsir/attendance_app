@@ -4,6 +4,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/login_screen.dart';
 import 'firebase_options.dart';
 import 'services/notification_background_service.dart';
+import 'package:provider/provider.dart';
+import 'services/theme_service.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,11 +29,9 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Attendance App',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.darkTheme,
       home: LoginScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }

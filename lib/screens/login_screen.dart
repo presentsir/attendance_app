@@ -31,6 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _selectedClassName;
   List<QueryDocumentSnapshot> _availableClasses = [];
   final _parentMobileController = TextEditingController();
+  bool _isPasswordVisible = false;
 
   @override
   void initState() {
@@ -429,72 +430,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
-                if (snapshot.error.toString().contains('failed-precondition') ||
-                    snapshot.error.toString().contains('requires an index')) {
-                  return Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          Icon(Icons.build, color: Colors.orange),
-                          SizedBox(height: 8),
-                          Text(
-                            'Setting up database...',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            'Please wait while we complete the initial setup.',
-                            style: TextStyle(
-                                color: Colors.grey[600], fontSize: 12),
-                            textAlign: TextAlign.center,
-                          ),
-                          SizedBox(height: 8),
-                          CircularProgressIndicator(),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                return Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Icon(Icons.error, color: Colors.red),
-                        SizedBox(height: 8),
-                        Text(
-                          'Error loading classes',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          'Please try again later',
-                          style:
-                              TextStyle(color: Colors.grey[600], fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-
-              if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(
-                  child: Column(
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 8),
-                      Text(
-                        'Loading classes...',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
+                  child: Text('Error: ${snapshot.error}'),
                 );
               }
 
-              _availableClasses = snapshot.data?.docs ?? [];
+              if (!snapshot.hasData) {
+                return Center(child: CircularProgressIndicator());
+              }
 
-              if (_availableClasses.isEmpty) {
+              final classes = snapshot.data?.docs ?? [];
+
+              if (classes.isEmpty) {
                 return Card(
                   child: Padding(
                     padding: EdgeInsets.all(16),
@@ -517,6 +464,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 );
               }
 
+              _availableClasses = classes;
+
               return DropdownButtonFormField<String>(
                 value: _selectedClassId,
                 isExpanded: true,
@@ -528,7 +477,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   contentPadding:
                       EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
-                items: _availableClasses.map((classDoc) {
+                items: classes.map((classDoc) {
                   return DropdownMenuItem<String>(
                     value: classDoc.id,
                     child: Text(
@@ -584,7 +533,14 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Login'),
+        title: Text(
+          'Login',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Poppins',
+          ),
+        ),
         centerTitle: true,
         elevation: 0,
       ),
@@ -748,8 +704,20 @@ class _LoginScreenState extends State<LoginScreen> {
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(
                               horizontal: 16, vertical: 12),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isPasswordVisible
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _isPasswordVisible = !_isPasswordVisible;
+                              });
+                            },
+                          ),
                         ),
-                        obscureText: true,
+                        obscureText: !_isPasswordVisible,
                       ),
                       SizedBox(height: 8),
                       Align(
@@ -828,7 +796,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     child: Text(
-                      _role == 'parent' ? 'Login as Parent' : 'Login',
+                      _role == 'parent' ? 'Login' : 'Login',
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),

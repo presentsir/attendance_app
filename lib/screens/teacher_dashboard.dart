@@ -8,6 +8,12 @@ import 'login_screen.dart';
 import '../services/user_session.dart';
 import 'notification_screen.dart';
 import '../services/notification_service.dart';
+import 'test_results_screen.dart';
+import 'student_details_screen.dart';
+import 'bulk_student_upload.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../theme/app_theme.dart';
+import 'scan_dropout_risk_screen.dart';
 
 class TeacherDashboard extends StatefulWidget {
   final School school; // School data passed from the login screen
@@ -42,6 +48,12 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     _screens = [
       AttendanceScreen(teacherId: widget.teacherId), // Pass teacherId
       RecordsScreen(teacherId: widget.teacherId), // Pass teacherId
+      TestResultsScreen(
+        teacherId: widget.teacherId,
+        classId: widget.classId,
+        className:
+            widget.classId, // You might want to pass the actual class name
+      ),
       ProfileScreen(
         school: widget.school,
         userEmail: widget.teacherName,
@@ -80,6 +92,201 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       MaterialPageRoute(builder: (context) => LoginScreen()),
       (route) => false,
     );
+  }
+
+  void _showClassOptions(
+      BuildContext context, String classId, String className) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppTheme.neonOrange,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Text(
+              'Class Options',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textColor,
+              ),
+            ),
+            SizedBox(height: 24),
+            ListTile(
+              leading: Icon(Icons.upload_file, color: AppTheme.neonOrange),
+              title: Text('Bulk Upload',
+                  style: TextStyle(color: AppTheme.textColor)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BulkStudentUpload(
+                      classId: classId,
+                    ),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.edit, color: AppTheme.neonGreen),
+              title: Text('Modify Class',
+                  style: TextStyle(color: AppTheme.textColor)),
+              onTap: () {
+                Navigator.pop(context);
+                _showModifyClassDialog(context, classId, className);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.people, color: AppTheme.neonBlue),
+              title: Text('Student Details',
+                  style: TextStyle(color: AppTheme.textColor)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => StudentDetailsScreen(
+                      classId: classId,
+                      className: className,
+                    ),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.analytics, color: AppTheme.neonGreen),
+              title: Text('WOP feature',
+                  style: TextStyle(color: AppTheme.textColor)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ScanDropoutRiskScreen(
+                      classId: classId,
+                      className: className,
+                    ),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete, color: Colors.red),
+              title: Text('Delete Class', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteClass(context, classId);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showModifyClassDialog(
+      BuildContext context, String classId, String className) {
+    final nameController = TextEditingController(text: className);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        title: Text('Modify Class Details',
+            style: TextStyle(color: AppTheme.textColor)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              style: TextStyle(color: AppTheme.textColor),
+              decoration: InputDecoration(
+                labelText: 'Class Name',
+                labelStyle: TextStyle(color: AppTheme.secondaryTextColor),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppTheme.neonOrange),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppTheme.secondaryTextColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppTheme.neonOrange),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: AppTheme.neonBlue)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await FirebaseFirestore.instance
+                    .collection('classes')
+                    .doc(classId)
+                    .update({
+                  'name': nameController.text,
+                  'lastUpdated': FieldValue.serverTimestamp(),
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Class details updated successfully',
+                        style: TextStyle(color: AppTheme.textColor)),
+                    backgroundColor: AppTheme.surfaceColor,
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error updating class details: $e',
+                        style: TextStyle(color: AppTheme.textColor)),
+                    backgroundColor: AppTheme.surfaceColor,
+                  ),
+                );
+              }
+            },
+            child: Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteClass(BuildContext context, String classId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('classes')
+          .doc(classId)
+          .delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Class deleted successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting class: $e')),
+      );
+    }
   }
 
   @override
@@ -159,6 +366,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
             icon: Icon(Icons.check_circle_outline),
@@ -167,6 +375,10 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           BottomNavigationBarItem(
             icon: Icon(Icons.history),
             label: 'Records',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.grade),
+            label: 'Test Results',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),

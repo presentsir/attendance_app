@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/notification_model.dart';
 import '../models/school_model.dart';
 import '../services/notification_service.dart';
+import '../widgets/theme_toggle.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
@@ -331,41 +332,51 @@ class _NotificationScreenState extends State<NotificationScreen> {
             ),
         ],
       ),
-      body: StreamBuilder<List<NotificationModel>>(
-        stream: _getNotificationsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error: ${snapshot.error}'),
-            );
-          }
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<List<NotificationModel>>(
+              stream: _getNotificationsStream(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}'),
+                  );
+                }
 
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+                if (!snapshot.hasData) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
 
-          final notifications = snapshot.data!;
+                final notifications = snapshot.data!;
 
-          if (notifications.isEmpty) {
-            return Center(
-              child: Text(
-                widget.isTeacher
-                    ? 'No notifications sent yet'
-                    : 'No notifications received yet',
-              ),
-            );
-          }
+                if (notifications.isEmpty) {
+                  return Center(
+                    child: Text(
+                      widget.isTeacher
+                          ? 'No notifications sent yet'
+                          : 'No notifications received yet',
+                    ),
+                  );
+                }
 
-          return ListView.builder(
-            itemCount: notifications.length,
-            itemBuilder: (context, index) {
-              final notification = notifications[index];
-              return _buildNotificationCard(notification);
-            },
-          );
-        },
+                return ListView.builder(
+                  itemCount: notifications.length,
+                  itemBuilder: (context, index) {
+                    final notification = notifications[index];
+                    return _buildNotificationCard(notification);
+                  },
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: const ThemeToggle(),
+          ),
+        ],
       ),
       floatingActionButton: widget.isTeacher
           ? FloatingActionButton(
