@@ -1,0 +1,2 @@
+C:/Users/WINDOWS 11/attendance_app-2/android/app/.cxx/RelWithDebInfo/3i184y14/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Users/WINDOWS 11/attendance_app-2/android/app/.cxx/RelWithDebInfo/3i184y14/armeabi-v7a/CMakeFiles/rebuild_cache.dir
